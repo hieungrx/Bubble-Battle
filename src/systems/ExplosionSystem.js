@@ -49,7 +49,8 @@ export default class ExplosionSystem {
 
   createExplosionHitbox(row, col) {
     const { x, y } = gridToWorld(row, col, GAME_RULES.tileSize);
-    const explosion = this.scene.add.rectangle(x, y, GAME_RULES.tileSize, GAME_RULES.tileSize, 0xffa500); // Orange color for explosion
+    const explosion = this.scene.add.rectangle(x, y, GAME_RULES.tileSize, GAME_RULES.tileSize, 0xf59e0b); // Fire amber explosion
+    explosion.setStrokeStyle(2, 0xef4444); // Red outer blast line
     
     this.explosions.add(explosion);
 

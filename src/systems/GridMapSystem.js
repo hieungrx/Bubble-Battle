@@ -21,15 +21,19 @@ export default class GridMapSystem {
         const tile = this.mapData[row][col];
         const { x, y } = gridToWorld(row, col, this.tileSize);
 
-        // Render floor as a basic rectangle for visual reference
-        const floorRect = this.scene.add.rectangle(x, y, this.tileSize, this.tileSize, 0x555555);
-        floorRect.setStrokeStyle(1, 0x444444);
+        // Floor: Dark Blue-Gray with subtle grid borders
+        const floorRect = this.scene.add.rectangle(x, y, this.tileSize, this.tileSize, 0x1e293b);
+        floorRect.setStrokeStyle(1, 0x0f172a);
 
         if (tile === TILE.WALL) {
-          const wall = this.scene.add.rectangle(x, y, this.tileSize, this.tileSize, 0x888888);
+          // Solid Wall: Steel Slate Gray with crisp border
+          const wall = this.scene.add.rectangle(x, y, this.tileSize, this.tileSize, 0x475569);
+          wall.setStrokeStyle(2, 0x334155);
           this.walls.add(wall);
         } else if (tile === TILE.CRATE) {
-          const crate = this.scene.add.rectangle(x, y, this.tileSize, this.tileSize, 0x8b5a2b);
+          // Destructible Crate: Warm Amber Wood Brown with dark outline
+          const crate = this.scene.add.rectangle(x, y, this.tileSize, this.tileSize, 0xd97706);
+          crate.setStrokeStyle(2, 0x92400e);
           this.crates.add(crate);
           this.crateSprites.set(`${row}-${col}`, crate);
         }

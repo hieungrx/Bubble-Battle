@@ -93,17 +93,36 @@ export default class GameScene extends Phaser.Scene {
   }
 
   createHUD() {
-    this.timeText = this.add.text(400, 20, `Time: ${GAME_RULES.roundDuration}`, {
-      fontSize: '24px',
-      fill: '#ffffff',
+    // HUD Header background bar
+    const hudBar = this.add.rectangle(400, 18, 800, 36, 0x0f172a, 0.85);
+    hudBar.setScrollFactor(0);
+
+    // Player 1 HUD
+    this.p1HudText = this.add.text(30, 18, 'P1 [WASD + SPACE]', {
+      fontSize: '16px',
+      fill: '#ef4444',
       fontStyle: 'bold'
-    }).setOrigin(0.5).setScrollFactor(0);
+    }).setOrigin(0, 0.5).setScrollFactor(0);
+
+    // Timer HUD
+    this.timeText = this.add.text(400, 18, `TIME: ${GAME_RULES.roundDuration}`, {
+      fontSize: '20px',
+      fill: '#f59e0b',
+      fontStyle: 'bold'
+    }).setOrigin(0.5, 0.5).setScrollFactor(0);
+
+    // Player 2 HUD
+    this.p2HudText = this.add.text(770, 18, 'P2 [ARROWS + ENTER]', {
+      fontSize: '16px',
+      fill: '#3b82f6',
+      fontStyle: 'bold'
+    }).setOrigin(1, 0.5).setScrollFactor(0);
 
     this.events.on('timer_tick', this.handleTimerTick, this);
   }
 
   handleTimerTick(timeLeft) {
-    this.timeText?.setText(`Time: ${timeLeft}`);
+    this.timeText?.setText(`TIME: ${timeLeft}`);
   }
 
   handlePlayerHit(player, explosion) {

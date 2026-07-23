@@ -1,6 +1,7 @@
 import { chromium } from 'playwright';
 import { spawn } from 'child_process';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -134,6 +135,12 @@ async function getGameState(page) {
 
     console.log('Waiting for MenuScene and pressing Space...');
     await page.waitForTimeout(1500); // Wait for Phaser to fully boot
+
+    const screenshotsDir = path.join(__dirname, '../docs/screenshots');
+    if (!fs.existsSync(screenshotsDir)) {
+      fs.mkdirSync(screenshotsDir, { recursive: true });
+    }
+    await page.screenshot({ path: path.join(screenshotsDir, 'menu.png') });
     
     let isGameSceneActive = false;
     for (let i = 0; i < 15; i++) {
@@ -165,6 +172,8 @@ async function getGameState(page) {
         await page.screenshot({ path: 'debug.png' });
         throw new Error('GameScene did not become active after multiple attempts. Saved debug.png.');
     }
+
+    await page.screenshot({ path: path.join(screenshotsDir, 'gameplay.png') });
 
     // 1. Test movement with assertions
     console.log('Testing Player 1 movement...');
