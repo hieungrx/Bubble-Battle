@@ -4,6 +4,7 @@ import GridMapSystem from '../systems/GridMapSystem.js';
 import ExplosionSystem from '../systems/ExplosionSystem.js';
 import RoundManager from '../systems/RoundManager.js';
 import { GAME_RULES } from '../constants/gameRules.js';
+import { ROUND_STATE } from '../constants/gameStates.js';
 import Player from '../entities/Player.js';
 import WaterBalloon from '../entities/WaterBalloon.js';
 import { gridToWorld, worldToGrid } from '../utils/grid.js';
@@ -14,12 +15,16 @@ export default class GameScene extends Phaser.Scene {
   }
 
   create() {
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.shutdown, this);
+
     this.mapSystem = new GridMapSystem(this, LEVEL_01);
     this.mapSystem.buildMap();
 
-    // Center the camera on the map (15 cols x 11 rows)
-    const mapWidth = 15 * GAME_RULES.tileSize;
-    const mapHeight = 11 * GAME_RULES.tileSize;
+    // Calculate map dimensions dynamically from LEVEL_01 data
+    const mapRows = LEVEL_01.length;
+    const mapCols = LEVEL_01[0].length;
+    const mapWidth = mapCols * GAME_RULES.tileSize;
+    const mapHeight = mapRows * GAME_RULES.tileSize;
     
     this.cameras.main.centerOn(mapWidth / 2, mapHeight / 2);
     
@@ -32,7 +37,7 @@ export default class GameScene extends Phaser.Scene {
 
     // Spawn Player 1 at row 1, col 1
     const p1Spawn = gridToWorld(1, 1, GAME_RULES.tileSize);
-    this.player1 = new Player(this, 1, p1Spawn.x, p1Spawn.y, 0xff0000); // Red
+    this.player1 = new Player(this, 1, p1Spawn.x, p1Spawn.y);
     this.player1.setControls({
       up: Phaser.Input.Keyboard.KeyCodes.W,
       down: Phaser.Input.Keyboard.KeyCodes.S,
@@ -43,7 +48,7 @@ export default class GameScene extends Phaser.Scene {
 
     // Spawn Player 2 at row 9, col 13 (opposite corner in level01)
     const p2Spawn = gridToWorld(9, 13, GAME_RULES.tileSize);
-    this.player2 = new Player(this, 2, p2Spawn.x, p2Spawn.y, 0x0000ff); // Blue
+    this.player2 = new Player(this, 2, p2Spawn.x, p2Spawn.y);
     this.player2.setControls({
       up: Phaser.Input.Keyboard.KeyCodes.UP,
       down: Phaser.Input.Keyboard.KeyCodes.DOWN,
@@ -64,7 +69,7 @@ export default class GameScene extends Phaser.Scene {
     // Players collide with each other
     this.physics.add.collider(this.player1, this.player2);
 
-    // Collision with balloons (only solid if they don't overlap)
+    // Collision with balloons (only solid if player cannot pass)
     this.physics.add.collider(this.player1, this.balloons, null, this.checkBalloonCollision, this);
     this.physics.add.collider(this.player2, this.balloons, null, this.checkBalloonCollision, this);
 
@@ -94,9 +99,11 @@ export default class GameScene extends Phaser.Scene {
       fontStyle: 'bold'
     }).setOrigin(0.5).setScrollFactor(0);
 
-    this.events.on('timer_tick', (timeLeft) => {
-      this.timeText.setText(`Time: ${timeLeft}`);
-    });
+    this.events.on('timer_tick', this.handleTimerTick, this);
+  }
+
+  handleTimerTick(timeLeft) {
+    this.timeText?.setText(`Time: ${timeLeft}`);
   }
 
   handlePlayerHit(player, explosion) {
@@ -104,23 +111,17 @@ export default class GameScene extends Phaser.Scene {
   }
 
   checkBalloonCollision(player, balloon) {
-    // If the player bounds still overlap with the balloon bounds from the center, 
-    // it means they haven't left it yet, so no collision.
-    // We can check simple distance or overlap.
-    const dist = Phaser.Math.Distance.Between(player.x, player.y, balloon.x, balloon.y);
-    if (dist < GAME_RULES.tileSize * 0.75) {
-      return false; // don't collide
-    }
-    return true; // collide
+    return !balloon.canPlayerPass(player);
   }
 
   handlePlaceBalloon(player) {
+    if (!this.roundManager || this.roundManager.state !== ROUND_STATE.PLAYING) return;
     if (player.activeBalloons >= player.maxBalloons) return;
 
     const gridPos = worldToGrid(player.x, player.y, GAME_RULES.tileSize);
     const { x, y } = gridToWorld(gridPos.row, gridPos.col, GAME_RULES.tileSize);
 
-    // Check if another balloon is already here
+    // Check if another balloon is already in this cell
     let hasBalloon = false;
     this.balloons.getChildren().forEach((b) => {
       if (b.gridRow === gridPos.row && b.gridCol === gridPos.col) {
@@ -130,15 +131,36 @@ export default class GameScene extends Phaser.Scene {
 
     if (hasBalloon) return;
 
-    // We shouldn't place inside walls or crates, but player can't walk there anyway.
-    
     const balloon = new WaterBalloon(this, x, y, player, gridPos.row, gridPos.col);
     this.balloons.add(balloon);
+    balloon.refreshBody();
     player.activeBalloons++;
   }
 
   update(time, delta) {
+    if (!this.roundManager || this.roundManager.state !== ROUND_STATE.PLAYING) {
+      if (this.player1) this.player1.setVelocity(0);
+      if (this.player2) this.player2.setVelocity(0);
+      return;
+    }
+
+    this.balloons.getChildren().forEach((balloon) => {
+      balloon.updateOwnerPassThrough?.();
+    });
+
     if (this.player1) this.player1.update();
     if (this.player2) this.player2.update();
+  }
+
+  shutdown() {
+    this.events.off('balloon_explode', this.explosionSystem?.handleExplosion, this.explosionSystem);
+    this.events.off('request_place_balloon', this.handlePlaceBalloon, this);
+    this.events.off('timer_tick', this.handleTimerTick, this);
+
+    this.roundManager?.destroy();
+    this.explosionSystem?.destroy?.();
+
+    this.player1?.cleanup?.();
+    this.player2?.cleanup?.();
   }
 }

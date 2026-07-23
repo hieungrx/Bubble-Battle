@@ -3,12 +3,6 @@ import { GAME_RULES } from '../constants/gameRules.js';
 
 export default class WaterBalloon extends Phaser.Physics.Arcade.Sprite {
   constructor(scene, x, y, owner, gridRow, gridCol) {
-    const graphics = scene.add.graphics();
-    graphics.fillStyle(0x00ffff, 1);
-    graphics.fillCircle(14, 14, 14);
-    graphics.generateTexture('balloon', 28, 28);
-    graphics.destroy();
-
     super(scene, x, y, 'balloon');
     scene.add.existing(this);
     scene.physics.add.existing(this);
@@ -17,8 +11,12 @@ export default class WaterBalloon extends Phaser.Physics.Arcade.Sprite {
     this.gridRow = gridRow;
     this.gridCol = gridCol;
 
+    this.passThroughPlayerIds = new Set(owner ? [owner.id] : []);
+    this.hasExploded = false;
+
     this.body.setImmovable(true);
     this.body.setSize(32, 32);
+    this.refreshBody();
 
     // After setting the balloon, it will explode after balloonFuseDuration
     this.fuseTimer = scene.time.delayedCall(
@@ -29,9 +27,34 @@ export default class WaterBalloon extends Phaser.Physics.Arcade.Sprite {
     );
   }
 
+  canPlayerPass(player) {
+    return this.passThroughPlayerIds.has(player.id);
+  }
+
+  updateOwnerPassThrough() {
+    if (!this.owner || !this.passThroughPlayerIds.has(this.owner.id)) {
+      return;
+    }
+
+    const stillOverlapping = Phaser.Geom.Intersects.RectangleToRectangle(
+      this.owner.getBounds(),
+      this.getBounds()
+    );
+
+    if (!stillOverlapping) {
+      this.passThroughPlayerIds.delete(this.owner.id);
+    }
+  }
+
   explode() {
-    if (!this.active) return;
-    
+    if (!this.active || this.hasExploded) return;
+    this.hasExploded = true;
+
+    if (this.fuseTimer) {
+      this.fuseTimer.remove(false);
+      this.fuseTimer = null;
+    }
+
     // Decrease the owner active balloon count exactly once
     if (this.owner && this.owner.activeBalloons > 0) {
       this.owner.activeBalloons--;
@@ -41,9 +64,19 @@ export default class WaterBalloon extends Phaser.Physics.Arcade.Sprite {
     this.scene.events.emit('balloon_explode', {
       row: this.gridRow,
       col: this.gridCol,
-      range: this.owner.waterRange
+      range: this.owner ? this.owner.waterRange : GAME_RULES.startingWaterRange
     });
 
     this.destroy();
+  }
+
+  preDestroy() {
+    if (this.fuseTimer) {
+      this.fuseTimer.remove(false);
+      this.fuseTimer = null;
+    }
+    if (super.preDestroy) {
+      super.preDestroy();
+    }
   }
 }

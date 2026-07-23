@@ -3,14 +3,7 @@ import { PLAYER_STATE } from '../constants/gameStates.js';
 import { GAME_RULES } from '../constants/gameRules.js';
 
 export default class Player extends Phaser.Physics.Arcade.Sprite {
-  constructor(scene, id, x, y, color) {
-    // We create a temporary texture using a graphics object to represent the player
-    const graphics = scene.add.graphics();
-    graphics.fillStyle(color, 1);
-    graphics.fillCircle(16, 16, 16);
-    graphics.generateTexture(`player_${id}`, 32, 32);
-    graphics.destroy();
-
+  constructor(scene, id, x, y) {
     super(scene, x, y, `player_${id}`);
 
     scene.add.existing(this);
@@ -30,6 +23,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.body.setOffset(4, 4);
 
     this.controls = {};
+    this.trapTimer = null;
   }
 
   setControls(keys) {
@@ -94,10 +88,18 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.body.setEnable(false);
 
     if (this.trapTimer) {
-      this.trapTimer.remove();
+      this.trapTimer.remove(false);
+      this.trapTimer = null;
     }
 
     // Emit player_dead event for round manager
     this.scene.events.emit('player_dead', this);
+  }
+
+  cleanup() {
+    if (this.trapTimer) {
+      this.trapTimer.remove(false);
+      this.trapTimer = null;
+    }
   }
 }

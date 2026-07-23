@@ -55,7 +55,13 @@ export default class ExplosionSystem {
 
     // Cleanup after explosionDuration
     this.scene.time.delayedCall(GAME_RULES.explosionDuration, () => {
-      explosion.destroy();
+      if (explosion.active) explosion.destroy();
     });
+  }
+
+  destroy() {
+    if (this.explosions) {
+      this.explosions.clear(true, true);
+    }
   }
 }

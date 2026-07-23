@@ -8,6 +8,10 @@ export default class RoundManager {
     this.p2 = p2;
     this.state = ROUND_STATE.READY;
     this.timeRemaining = GAME_RULES.roundDuration;
+
+    this.timer = null;
+    this.pendingResolveTimer = null;
+    this.resultTransitionTimer = null;
     
     // Listen for dead events
     this.scene.events.on('player_dead', this.handlePlayerDead, this);
@@ -28,7 +32,6 @@ export default class RoundManager {
     
     this.timeRemaining--;
     
-    // UI update could go here or scene can poll this.timeRemaining
     this.scene.events.emit('timer_tick', this.timeRemaining);
 
     if (this.timeRemaining <= 0) {
@@ -39,8 +42,10 @@ export default class RoundManager {
   handlePlayerDead(player) {
     if (this.state !== ROUND_STATE.PLAYING) return;
 
+    if (this.pendingResolveTimer) return;
+
     // We can have a small delay to see if the other player also dies in the same explosion
-    this.scene.time.delayedCall(100, () => {
+    this.pendingResolveTimer = this.scene.time.delayedCall(100, () => {
       this.resolveRound();
     });
   }
@@ -52,7 +57,15 @@ export default class RoundManager {
   resolveRound(isTimeout = false) {
     if (this.state !== ROUND_STATE.PLAYING) return;
     this.state = ROUND_STATE.FINISHED;
-    if (this.timer) this.timer.remove();
+
+    if (this.timer) {
+      this.timer.remove(false);
+      this.timer = null;
+    }
+
+    if (this.p1) this.p1.setVelocity(0);
+    if (this.p2) this.p2.setVelocity(0);
+    this.scene.events.emit('round_finished');
 
     const p1Dead = this.p1.state === PLAYER_STATE.DEAD;
     const p2Dead = this.p2.state === PLAYER_STATE.DEAD;
@@ -71,12 +84,24 @@ export default class RoundManager {
     }
 
     // Wait a bit then transition to result scene
-    this.scene.time.delayedCall(2000, () => {
+    this.resultTransitionTimer = this.scene.time.delayedCall(2000, () => {
       this.scene.scene.start('ResultScene', {
         result,
         reason,
         duration: GAME_RULES.roundDuration - this.timeRemaining
       });
     });
+  }
+
+  destroy() {
+    this.timer?.remove(false);
+    this.pendingResolveTimer?.remove(false);
+    this.resultTransitionTimer?.remove(false);
+
+    this.scene.events.off('player_dead', this.handlePlayerDead, this);
+
+    this.timer = null;
+    this.pendingResolveTimer = null;
+    this.resultTransitionTimer = null;
   }
 }
