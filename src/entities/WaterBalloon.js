@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { GAME_RULES } from '../constants/gameRules.js';
 
-export default class WaterBalloon extends Phaser.Physics.Arcade.Sprite {
+export default class WaterBalloon extends Phaser.GameObjects.Sprite {
   constructor(scene, x, y, owner, gridRow, gridCol) {
     super(scene, x, y, 'balloon');
     scene.add.existing(this);
@@ -15,7 +15,7 @@ export default class WaterBalloon extends Phaser.Physics.Arcade.Sprite {
     this.hasExploded = false;
 
     this.body.setSize(32, 32);
-    this.refreshBody();
+    this.body.updateFromGameObject();
 
     // After setting the balloon, it will explode after balloonFuseDuration
     this.fuseTimer = scene.time.delayedCall(
@@ -35,10 +35,7 @@ export default class WaterBalloon extends Phaser.Physics.Arcade.Sprite {
       return;
     }
 
-    const stillOverlapping = Phaser.Geom.Intersects.RectangleToRectangle(
-      this.owner.getBounds(),
-      this.getBounds()
-    );
+    const stillOverlapping = this.scene.physics.overlap(this.owner, this);
 
     if (!stillOverlapping) {
       this.passThroughPlayerIds.delete(this.owner.id);

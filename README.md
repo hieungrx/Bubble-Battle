@@ -31,6 +31,12 @@ Bubble Battle: Campus Chaos là một trò chơi 2D đối kháng local hai ngư
    npm run build
    ```
 
+## Chạy QA Test (Automated & Browser)
+   ```bash
+   npx playwright install chromium
+   npm run qa
+   ```
+
 ## Phím điều khiển
 ### Player 1 (Màu đỏ)
 - **Lên:** W

@@ -69,6 +69,7 @@ export default class RoundManager {
     this.scene.events.emit('round_finished');
 
     const result = resolvePlayerStates(this.p1 ? this.p1.state : null, this.p2 ? this.p2.state : null, isTimeout);
+    this.lastResolvedResult = result;
     const reason = isTimeout ? 'timeout' : 'elimination';
 
     // Wait a bit then transition to result scene

@@ -118,13 +118,19 @@ export default class GameScene extends Phaser.Scene {
   }
 
   handlePlaceBalloon(player) {
-    if (!this.roundManager || this.roundManager.state !== ROUND_STATE.PLAYING) return;
-    if (player.activeBalloons >= player.maxBalloons) return;
+    if (!this.roundManager) {
+        return;
+    }
+    if (this.roundManager.state !== ROUND_STATE.PLAYING) {
+        return;
+    }
+    if (player.activeBalloons >= player.maxBalloons) {
+        return;
+    }
 
     const gridPos = worldToGrid(player.x, player.y, GAME_RULES.tileSize);
     const { x, y } = gridToWorld(gridPos.row, gridPos.col, GAME_RULES.tileSize);
 
-    // Check if another balloon is already in this cell
     let hasBalloon = false;
     this.balloons.getChildren().forEach((b) => {
       if (b.gridRow === gridPos.row && b.gridCol === gridPos.col) {
@@ -132,11 +138,13 @@ export default class GameScene extends Phaser.Scene {
       }
     });
 
-    if (hasBalloon) return;
+    if (hasBalloon) {
+        return;
+    }
 
     const balloon = new WaterBalloon(this, x, y, player, gridPos.row, gridPos.col);
-    this.balloons.add(balloon);
-    balloon.refreshBody();
+    this.balloons.add(balloon, true);
+    balloon.body.updateFromGameObject();
     player.activeBalloons++;
   }
 
@@ -158,11 +166,7 @@ export default class GameScene extends Phaser.Scene {
   shutdown() {
     this.events.off('balloon_explode', this.explosionSystem?.handleExplosion, this.explosionSystem);
     this.events.off('request_place_balloon', this.handlePlaceBalloon, this);
-    this.events.off('timer_tick', this.handleTimerTick, this);
-
-    this.roundManager?.destroy();
-    this.explosionSystem?.destroy?.();
-
+    
     this.player1?.cleanup?.();
     this.player2?.cleanup?.();
   }

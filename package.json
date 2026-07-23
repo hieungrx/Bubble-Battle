@@ -8,7 +8,9 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:browser": "node scripts/verify-browser.js",
+    "qa": "npm run test && npm run build && npm run test:browser"
   },
   "dependencies": {
     "phaser": "^3.90.0"
