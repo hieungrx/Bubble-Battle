@@ -14,11 +14,11 @@ Bubble Battle: Campus Chaos là một trò chơi 2D đối kháng local hai ngư
 ## Cài đặt
 1. Clone dự án:
    ```bash
-   git clone <repository_url>
-   ```
-2. Cài đặt các package cần thiết:
-   ```bash
+   git clone https://github.com/hieungrx/Bubble-Battle.git
+   cd Bubble-Battle
+   git checkout feature/bubble-battle-asm
    npm install
+   npm run dev
    ```
 
 ## Chạy development

@@ -7,42 +7,52 @@ Bubble Battle: Campus Chaos
 feature/bubble-battle-asm
 
 ## Current Package
-P9 — QA và Handoff
+QA Fix Round 1
 
 ## Completed
-P0, P1, P2, P3, P4, P5, P6, P7, P8, P9
-
-## Partially Completed
-None
-
-## Not Started
-P10
+- Dependency and lockfile synchronization
+- Balloon collision fix
+- Texture lifecycle fix
+- Event and timer cleanup
+- Round finish locking
+- Build validation
 
 ## Commands
 npm run dev
 npm run build
+npm run preview
 
 ## Build Status
 Pass
 
 ## Manual Test Status
-Pass (Kiểm thử lý thuyết qua cấu trúc object, không có crash)
+Verified via automated CLI build, npm ci validation, and structural unit logic verification.
 
 ## Known Bugs
-None
+None observed during executed tests.
 
 ## Technical Decisions
-- Core functionality hoàn thiện hoàn toàn theo yêu cầu bắt buộc (P0 - P9).
-- Tách bạch logic ra hệ thống riêng rẽ (GridMapSystem, ExplosionSystem, RoundManager, Player).
+- Synchronized Phaser (3.90.0) and Vite (6.4.3) dependencies across package.json and package-lock.json.
+- Improved balloon collision with `passThroughPlayerIds` set and `Phaser.Geom.Intersects.RectangleToRectangle` overlap check.
+- Centralized placeholder texture generation in `BootScene.js` to avoid duplicate texture key creation.
+- Implemented lifecycle `shutdown()` and `destroy()` methods across GameScene, RoundManager, ExplosionSystem, Player, and WaterBalloon for leak-free restart.
+- Added strict `ROUND_STATE.PLAYING` checks in GameScene update and balloon placement handlers to lock gameplay during round transition.
 
 ## Files Changed
-- docs/TEST_REPORT.md
+- package.json
+- package-lock.json
+- src/scenes/BootScene.js
+- src/scenes/GameScene.js
+- src/entities/Player.js
+- src/entities/WaterBalloon.js
+- src/systems/ExplosionSystem.js
+- src/systems/RoundManager.js
 - README.md
+- docs/TEST_REPORT.md
+- PROJECT_HANDOFF_CURRENT.md
 
 ## Scope Exclusions
-Multiplayer, WebSocket, Backend, DB, Login, 3D, Custom Assets.
+Multiplayer, WebSocket, Backend, DB, Login, 3D, Custom Assets, Power-ups.
 
 ## Exact Next Instruction
-Các yêu cầu bắt buộc từ P0 đến P9 đã hoàn tất.
-Chỉ triển khai P10 — Nâng cao (Power-up, Chain Reaction) nếu có lệnh tiếp theo từ người dùng.
-Nếu không, dự án đã đủ điều kiện để nộp bài ASM.
+Reviewer cần fetch commit mới nhất và thực hiện independent QA.
