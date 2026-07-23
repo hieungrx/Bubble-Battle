@@ -107,6 +107,9 @@ export default class GameScene extends Phaser.Scene {
   }
 
   handlePlayerHit(player, explosion) {
+    if (!this.roundManager || this.roundManager.state !== ROUND_STATE.PLAYING) {
+      return;
+    }
     player.trap();
   }
 

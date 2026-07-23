@@ -1,5 +1,6 @@
 import { ROUND_STATE, PLAYER_STATE } from '../constants/gameStates.js';
 import { GAME_RULES } from '../constants/gameRules.js';
+import { resolvePlayerStates } from '../utils/roundResolver.js';
 
 export default class RoundManager {
   constructor(scene, p1, p2) {
@@ -67,21 +68,8 @@ export default class RoundManager {
     if (this.p2) this.p2.setVelocity(0);
     this.scene.events.emit('round_finished');
 
-    const p1Dead = this.p1.state === PLAYER_STATE.DEAD;
-    const p2Dead = this.p2.state === PLAYER_STATE.DEAD;
-
-    let result = 'draw';
-    let reason = isTimeout ? 'timeout' : 'elimination';
-
-    if (p1Dead && p2Dead) {
-      result = 'draw';
-    } else if (p1Dead) {
-      result = 'player2';
-    } else if (p2Dead) {
-      result = 'player1';
-    } else if (isTimeout) {
-      result = 'draw';
-    }
+    const result = resolvePlayerStates(this.p1 ? this.p1.state : null, this.p2 ? this.p2.state : null, isTimeout);
+    const reason = isTimeout ? 'timeout' : 'elimination';
 
     // Wait a bit then transition to result scene
     this.resultTransitionTimer = this.scene.time.delayedCall(2000, () => {

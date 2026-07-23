@@ -5,7 +5,7 @@ export default class WaterBalloon extends Phaser.Physics.Arcade.Sprite {
   constructor(scene, x, y, owner, gridRow, gridCol) {
     super(scene, x, y, 'balloon');
     scene.add.existing(this);
-    scene.physics.add.existing(this);
+    scene.physics.add.existing(this, true);
 
     this.owner = owner;
     this.gridRow = gridRow;
@@ -14,7 +14,6 @@ export default class WaterBalloon extends Phaser.Physics.Arcade.Sprite {
     this.passThroughPlayerIds = new Set(owner ? [owner.id] : []);
     this.hasExploded = false;
 
-    this.body.setImmovable(true);
     this.body.setSize(32, 32);
     this.refreshBody();
 
