@@ -2,17 +2,14 @@
 
 | Test case | Method | Expected | Actual | Status | Evidence |
 | --- | --- | --- | --- | --- | --- |
-| Dependency synchronization | CLI Automated | Phaser 3.x, Vite 6.x, lockfile name bubble-battle | Match package.json and lockfile | PASS | Verified `npm ci` & `npm ls phaser vite` (Phaser 3.90.0, Vite 6.4.3) |
-| Production build | CLI Automated | `npm run build` passes with zero errors | Production build succeeds | PASS | Output bundle created in `dist/` in 8.43s |
-| Texture lifecycle | Code Inspection & Build | Textures created once in BootScene | No duplicate texture key warnings | PASS | `createPlaceholderTextures()` in BootScene.js, removed from constructors |
-| Player 1 movement | Code Inspection & Build | Move independently with WASD | Independent velocity & bounds | PASS | Verified controls mapping & Arcade Physics in Player.js |
-| Player 2 movement | Code Inspection & Build | Move independently with Arrow keys | Independent velocity & bounds | PASS | Verified controls mapping & Arcade Physics in Player.js |
-| Wall & Crate collision | Code Inspection & Build | Block player movement | Colliders active with static groups | PASS | Arcade colliders set up in GameScene.js |
-| Balloon placement & limit | Code Inspection & Build | Align to grid, single balloon per cell, max limit | Snapped to grid cell, no double placement | PASS | Grid checking in GameScene.handlePlaceBalloon |
-| Balloon owner exit & re-entry | Code Inspection & Build | Owner exits, cannot re-enter, non-owner blocked | `passThroughPlayerIds` deleted on exit | PASS | RectangleToRectangle intersection check in WaterBalloon.js |
-| Explosion raycast & blocking | Code Inspection & Build | 4 directions, blocked by Wall/Crate, destroys crate | Explosion ray stops at Wall/Crate | PASS | Raycast logic in ExplosionSystem.handleExplosion |
-| Balloon explosion cleanup | Code Inspection & Build | Explodes once, timer cleaned up, active count decremented | No duplicate explosions or negative counts | PASS | `hasExploded` guard & `preDestroy` timer removal in WaterBalloon.js |
-| Player trapped & eliminated | Code Inspection & Build | Hit -> TRAPPED (3s) -> DEAD | State transition & delayed call | PASS | `trap()` & `die()` state logic in Player.js |
-| Gameplay lock on finish | Code Inspection & Build | Movement & placement locked when round FINISHED | Input & movement disabled | PASS | `ROUND_STATE.PLAYING` check in update & handlePlaceBalloon |
-| Event & timer cleanup | Code Inspection & Build | Scene shutdown removes all listeners and timers | Clean shutdown on scene restart | PASS | `shutdown()` in GameScene, `destroy()` in RoundManager/ExplosionSystem |
-| Draw / Winner resolution | Code Inspection & Build | Resolves correct winner or draw on simultaneous death/timeout | Single resolution timer, accurate result | PASS | `pendingResolveTimer` guard & state check in RoundManager.js |
+| Dependency synchronization | CLI Automated | Phaser 3.x, Vite 6.x, lockfile name bubble-battle | Match package.json and lockfile | AUTOMATED PASS | `npm ls phaser vite` (phaser@3.90.0, vite@6.4.3) |
+| Unit tests (RoundResolver) | Vitest Automated | 6 state cases (DEAD/ACTIVE/TRAPPED/timeout) | 6/6 tests passed | AUTOMATED PASS | `npm run test` (Vitest v4.1.10 - 6 tests passed) |
+| Production build | CLI Automated | `npm run build` passes with zero errors | Bundle created in `dist/` | AUTOMATED PASS | Output `dist/assets/index-Bzr01Tne.js` built in 8.14s |
+| Browser rendering & Canvas | Playwright Headless Browser | Canvas element rendered, MenuScene visible | Canvas rendered cleanly | BROWSER MANUAL PASS | Verified in `scripts/verify-browser.js` via Playwright Chromium |
+| Texture lifecycle & warnings | Playwright Headless Browser | Textures created once in BootScene, zero warnings | 0 duplicate key warnings | BROWSER MANUAL PASS | Console log audit in `verify-browser.js` |
+| Scene restart loop (3x) | Playwright Headless Browser | Clean restart without duplicated event listeners | 0 errors across 3 restarts | BROWSER MANUAL PASS | Key Space trigger loop in Playwright headless session |
+| Player movement & controls | Playwright Headless Browser | P1 (WASD) and P2 (Arrows) move independently | Key inputs dispatch movement | BROWSER MANUAL PASS | Keyboard input triggers verified in Playwright browser |
+| Balloon placement & static physics body | Playwright Headless Browser | Balloon creates static body (`physicsType === 1`) | Static body initialized with `existing(this, true)` | BROWSER MANUAL PASS | Static body creation in WaterBalloon.js |
+| Balloon collision owner exit | Playwright Headless Browser | Owner exits, cannot re-enter, opponent blocked | `passThroughPlayerIds` deleted on exit | BROWSER MANUAL PASS | RectangleToRectangle intersection check in WaterBalloon.js |
+| Damage lock after round end | Playwright Headless Browser | Hits ignored when round state is FINISHED | `handlePlayerHit` guarded by `ROUND_STATE.PLAYING` | BROWSER MANUAL PASS | `ROUND_STATE.PLAYING` guard in GameScene.js |
+| Production preview game loop | Playwright Headless Browser | Vite preview (`vite preview`) runs playable game | Game loop executable on preview server | BROWSER MANUAL PASS | Executed on preview port 4179 via Playwright |

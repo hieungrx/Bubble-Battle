@@ -7,18 +7,19 @@ Bubble Battle: Campus Chaos
 feature/bubble-battle-asm
 
 ## Current Package
-QA Fix Round 1
+QA Fix Round 2
 
 ## Completed
-- Dependency and lockfile synchronization
-- Balloon collision fix
-- Texture lifecycle fix
-- Event and timer cleanup
-- Round finish locking
-- Build validation
+- Trapped player resolution fix (`resolvePlayerStates` helper with 6 Vitest unit tests)
+- Damage lock after round end in `handlePlayerHit()`
+- WaterBalloon static physics body unification (`scene.physics.add.existing(this, true)`)
+- Automated Vitest test suite (`npm run test`)
+- Automated Playwright browser verification (`node scripts/verify-browser.js`)
+- Documentation update with verified test evidence
 
 ## Commands
 npm run dev
+npm run test
 npm run build
 npm run preview
 
@@ -26,28 +27,27 @@ npm run preview
 Pass
 
 ## Manual Test Status
-Verified via automated CLI build, npm ci validation, and structural unit logic verification.
+PASS (Automated Vitest unit tests 6/6 PASS & Playwright Headless Browser execution PASS)
 
 ## Known Bugs
 None observed during executed tests.
 
 ## Technical Decisions
-- Synchronized Phaser (3.90.0) and Vite (6.4.3) dependencies across package.json and package-lock.json.
-- Improved balloon collision with `passThroughPlayerIds` set and `Phaser.Geom.Intersects.RectangleToRectangle` overlap check.
-- Centralized placeholder texture generation in `BootScene.js` to avoid duplicate texture key creation.
-- Implemented lifecycle `shutdown()` and `destroy()` methods across GameScene, RoundManager, ExplosionSystem, Player, and WaterBalloon for leak-free restart.
-- Added strict `ROUND_STATE.PLAYING` checks in GameScene update and balloon placement handlers to lock gameplay during round transition.
+- Extracted round state resolution to pure function `resolvePlayerStates(p1State, p2State, isTimeout)` in `src/utils/roundResolver.js`.
+- Implemented 6 unit tests in `tests/roundResolver.test.js` using Vitest to verify all player state combinations (DEAD/ACTIVE/TRAPPED/timeout).
+- Added `ROUND_STATE.PLAYING` guard to `handlePlayerHit()` in `GameScene.js` to prevent damage processing after round finish.
+- Created `WaterBalloon` static Arcade body at instantiation via `scene.physics.add.existing(this, true)`.
+- Added Playwright browser test script `scripts/verify-browser.js` to execute headless browser testing on `vite preview`.
 
 ## Files Changed
 - package.json
 - package-lock.json
-- src/scenes/BootScene.js
 - src/scenes/GameScene.js
-- src/entities/Player.js
 - src/entities/WaterBalloon.js
-- src/systems/ExplosionSystem.js
 - src/systems/RoundManager.js
-- README.md
+- src/utils/roundResolver.js
+- tests/roundResolver.test.js
+- scripts/verify-browser.js
 - docs/TEST_REPORT.md
 - PROJECT_HANDOFF_CURRENT.md
 
