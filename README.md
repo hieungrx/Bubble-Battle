@@ -18,12 +18,13 @@
 ## 4. Luật chơi
 - Hai người chơi xuất phát ở hai góc đối diện trên bản đồ dạng lưới 11x15.
 - Mỗi người chơi có thể di chuyển và đặt bóng nước dưới chân.
-- Bóng nước tự động nổ sau 3 giây (`balloonFuseDuration`).
+- Bóng nước tự động nổ sau 2 giây (`balloonFuseDuration`).
 - Tia nước phát tán theo 4 hướng (`UP`, `DOWN`, `LEFT`, `RIGHT`) với bán kính mặc định 1 ô.
 - Tia nước bị chặn lại bởi Tường cứng (`WALL`) và phá hủy Thùng gỗ (`CRATE`) đầu tiên va chạm.
-- Người chơi chạm phải tia nước sẽ chuyển sang trạng thái bị dính nước (`TRAPPED`) trong 5 giây trước khi hạ gục (`DEAD`).
-- Người chơi còn sống cuối cùng sẽ dành chiến thắng.
-- Trận đấu hết thời gian (60 giây) hoặc cả hai người chơi cùng bị hạ gục sẽ có kết quả Hòa (`DRAW`).
+- Người chơi chạm phải tia nước sẽ chuyển sang trạng thái bị dính nước (`TRAPPED`) trong 3 giây trước khi hạ gục (`DEAD`).
+- Khi đã TRAPPED, hit tiếp theo không khiến người chơi chết ngay. Người chơi chuyển sang DEAD khi trap timer kết thúc.
+- Người chơi còn sống cuối cùng sẽ giành chiến thắng.
+- Trận đấu hết thời gian (120 giây) hoặc cả hai người chơi cùng bị hạ gục sẽ có kết quả Hòa (`DRAW`).
 
 ---
 

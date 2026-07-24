@@ -37,7 +37,7 @@ Sử dụng 2 hàm thuần (Pure Functions) trong `src/utils/grid.js`:
 
 ## 6. Cơ chế Hoạt động của Bóng Nước (WaterBalloon)
 - Khi nhận sự kiện `request_place_balloon`, `GameScene` kiểm tra ô lưới trống và giới hạn bóng của người chơi.
-- Bóng nước tạo ra thuộc `physics.add.staticGroup()`, cài đặt fuse timer (`balloonFuseDuration = 3000ms`).
+- Bóng nước tạo ra thuộc `physics.add.staticGroup()`, cài đặt fuse timer (`balloonFuseDuration = 2000ms`).
 - **Owner Pass-through Logic:** Người vừa đặt bóng được phép đi xuyên qua bóng. Ngay khi bước ra khỏi vùng phủ của bóng (`physics.overlap == false`), ID của họ bị xóa khỏi `passThroughPlayerIds`, khiến bóng trở thành vật cản cứng.
 
 ---
@@ -53,8 +53,8 @@ Khi bóng nổ, `ExplosionSystem` phát tán tia nước theo 4 hướng (`UP`, 
 
 ## 8. Vòng đời Trạng thái Người chơi (ACTIVE -> TRAPPED -> DEAD)
 1. **ACTIVE:** Người chơi di chuyển và đặt bóng bình thường.
-2. **TRAPPED:** Khi trúng tia nước nổ, người chơi đổi màu cyan, không thể di chuyển và kích hoạt `trapTimer` (5000ms).
-3. **DEAD:** Khi `trapTimer` hết hạn hoặc dính thêm sát thương, người chơi chuyển sang `DEAD`, ẩn sprite, vô hiệu hóa physics body và phát sự kiện `player_dead`.
+2. **TRAPPED:** Khi trúng tia nước nổ, người chơi đổi màu cyan, không thể di chuyển và kích hoạt `trapTimer` (3000ms). Khi đã TRAPPED, hit tiếp theo không khiến người chơi chết ngay.
+3. **DEAD:** Khi `trapTimer` hết hạn, người chơi chuyển sang `DEAD`, ẩn sprite, vô hiệu hóa physics body và phát sự kiện `player_dead`.
 
 ---
 
@@ -77,7 +77,7 @@ Khi bóng nổ, `ExplosionSystem` phát tán tia nước theo 4 hướng (`UP`, 
 ---
 
 ## 11. Chiến lược Kiểm thử Tự động (Vitest & Playwright)
-- **Vitest Unit Tests:** Kiểm tra 100% các trường hợp tổ hợp trạng thái kết thúc trận đấu trong `roundResolver.test.js`.
+- **Vitest Unit Tests:** Kiểm tra các trường hợp tổ hợp trạng thái kết thúc trận đấu trong `roundResolver.test.js`.
 - **Playwright Browser Integration Tests:** Script `verify-browser.js` tự động khởi chạy Chrome headless, mô phỏng phím bấm, kiểm tra di chuyển, va chạm vật lý, nổ bóng và chạy lặp 3 chu kỳ restart scene để đảm bảo 0 rò rỉ bộ nhớ hay duplicated listeners.
 
 ---
@@ -101,7 +101,7 @@ Khi bóng nổ, `ExplosionSystem` phát tán tia nước theo 4 hướng (`UP`, 
 4. **Q: Tia nước nổ 4 hướng được xử lý ra sao để không nổ xuyên tường?**
    *A:* `ExplosionSystem` duyệt vòng lặp `for` từ 1 đến `range` theo 4 hướng vector. Nếu gặp `TILE.WALL` thì ngắt `break` ngay lập tức; nếu gặp `TILE.CRATE` thì nổ thùng và `break`.
 5. **Q: Tại sao lại có trạng thái trung gian TRAPPED trước khi DEAD?**
-   *A:* Đây là đặc trưng gameplay bóng nước: khi dính nước người chơi bị bóng bao bọc (bóng bóng bóng), đếm ngược 5 giây trước khi vỡ (DEAD).
+   *A:* Đây là đặc trưng gameplay bóng nước: khi dính nước người chơi bị bóng bao bọc (bóng bóng bóng), đếm ngược 3 giây trước khi vỡ (DEAD).
 6. **Q: Trường hợp một người DEAD và người kia đang TRAPPED thì ai thắng?**
    *A:* Kết quả là **Hòa (Draw)** vì người ở trạng thái TRAPPED chắc chắn sẽ chuyển sang DEAD do không có cơ chế giải cứu. Hàm thuần `resolvePlayerStates()` kiểm tra chính xác trường hợp này.
 7. **Q: Làm thế nào em đảm bảo không bị trùng lặp Event Listeners khi người chơi Restart nhiều lần?**

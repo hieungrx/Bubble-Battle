@@ -62,7 +62,11 @@ export default class ExplosionSystem {
 
   destroy() {
     if (this.explosions) {
-      this.explosions.clear(true, true);
+      try {
+        this.explosions.clear(true, true);
+      } catch (e) {
+        // Ignored during scene shutdown
+      }
     }
   }
 }

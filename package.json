@@ -7,10 +7,14 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:test": "vite build --mode test --outDir dist-test",
     "preview": "vite preview",
+    "preview:test": "vite preview --outDir dist-test --port 4179 --strictPort",
     "test": "vitest run",
-    "test:browser": "node scripts/verify-browser.js",
-    "qa": "npm run test && npm run build && npm run test:browser"
+    "test:production": "node scripts/verify-production-build.js",
+    "test:browser": "npm run build:test && node scripts/verify-browser.js",
+    "qa": "npm run test && npm run build && npm run test:production && npm run test:browser",
+    "screenshots": "npm run build:test && node scripts/capture-screenshots.js"
   },
   "dependencies": {
     "phaser": "^3.90.0"

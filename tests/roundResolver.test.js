@@ -32,4 +32,10 @@ describe('resolvePlayerStates', () => {
     const result = resolvePlayerStates(PLAYER_STATE.ACTIVE, PLAYER_STATE.ACTIVE, true);
     expect(result).toBe('draw');
   });
+
+  it('should throw TypeError when states are invalid or uppercase', () => {
+    expect(() => resolvePlayerStates('DEAD', PLAYER_STATE.ACTIVE)).toThrow(TypeError);
+    expect(() => resolvePlayerStates(PLAYER_STATE.ACTIVE, 'INVALID')).toThrow(TypeError);
+    expect(() => resolvePlayerStates('UNKNOWN', 'UNKNOWN')).toThrow(TypeError);
+  });
 });

@@ -183,10 +183,35 @@ export default class GameScene extends Phaser.Scene {
   }
 
   shutdown() {
-    this.events.off('balloon_explode', this.explosionSystem?.handleExplosion, this.explosionSystem);
-    this.events.off('request_place_balloon', this.handlePlaceBalloon, this);
-    
+    this.events.off(
+      'balloon_explode',
+      this.explosionSystem?.handleExplosion,
+      this.explosionSystem
+    );
+
+    this.events.off(
+      'request_place_balloon',
+      this.handlePlaceBalloon,
+      this
+    );
+
+    this.events.off(
+      'timer_tick',
+      this.handleTimerTick,
+      this
+    );
+
+    this.roundManager?.destroy();
+    this.explosionSystem?.destroy?.();
+
     this.player1?.cleanup?.();
     this.player2?.cleanup?.();
+
+    this.roundManager = null;
+    this.explosionSystem = null;
+    this.player1 = null;
+    this.player2 = null;
+    this.balloons = null;
+    this.mapSystem = null;
   }
 }

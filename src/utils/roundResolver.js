@@ -1,6 +1,14 @@
 import { PLAYER_STATE } from '../constants/gameStates.js';
 
 export function resolvePlayerStates(p1State, p2State, isTimeout = false) {
+  const validStates = Object.values(PLAYER_STATE);
+  if (p1State && !validStates.includes(p1State)) {
+    throw new TypeError(`Invalid p1State: ${p1State}`);
+  }
+  if (p2State && !validStates.includes(p2State)) {
+    throw new TypeError(`Invalid p2State: ${p2State}`);
+  }
+
   const p1Dead = p1State === PLAYER_STATE.DEAD;
   const p2Dead = p2State === PLAYER_STATE.DEAD;
   const p1Trapped = p1State === PLAYER_STATE.TRAPPED;
