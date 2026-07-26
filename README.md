@@ -38,10 +38,8 @@
 - **Đặt bóng nước:** `ENTER`
 
 ### Quiz Answer Controls
-- **Chọn đáp án 1:** Phím `1`
-- **Chọn đáp án 2:** Phím `2`
-- **Chọn đáp án 3:** Phím `3`
-- **Chọn đáp án 4:** Phím `4`
+- **Player 1:** Phím `1`, `2`, `3`, `4`
+- **Player 2:** Phím `UP` / `DOWN` chọn đáp án, `ENTER` xác nhận
 
 ---
 
@@ -64,9 +62,9 @@ Khi người chơi phá hủy thùng gỗ (`CRATE`), có cơ hội xuất hiện
 - Trong lúc trả lời, game tạm dừng hoàn toàn — người chơi không thể di chuyển, đặt bóng, hoặc bị sát thương.
 
 ### Phần thưởng (Power-up)
-- **Speed Boost:** Tăng tốc độ di chuyển thêm 20%, hiệu lực 10 giây.
-- **Extra Balloon:** Tăng giới hạn bóng tối đa thêm 1 (tối đa 3), hiệu lực đến hết round.
-- **Explosion Range:** Tăng bán kính nổ thêm 1 ô (tối đa 3), hiệu lực đến hết round.
+- **Speed Boost:** Tăng tốc độ di chuyển thêm 20% (×1.2), hiệu lực 15 giây. Có thể refresh khi nhận lại.
+- **Extra Balloon:** Tăng giới hạn bóng tối đa thêm 1 (tối đa 5), hiệu lực đến hết round.
+- **Explosion Range:** Tăng bán kính nổ thêm 1 ô (tối đa 5), hiệu lực đến hết round.
 
 ### Chủ đề câu hỏi
 - Kiểu dữ liệu và `typeof`
@@ -80,11 +78,16 @@ Khi người chơi phá hủy thùng gỗ (`CRATE`), có cơ hội xuất hiện
 - JSON (`JSON.stringify`)
 
 ### Quy tắc Quiz
-- Chỉ cho phép **tối đa 1 Quiz Item** trên bản đồ tại một thời điểm.
+- Mỗi round có **10 hidden Quiz Crates** được chọn ngẫu nhiên từ 68 ô crate hợp lệ.
+- Có thể có nhiều Quiz Item cùng tồn tại trên bản đồ.
+- P1 và P2 dùng chung item — ai chạm item trước thì người đó trả lời.
+- P1 dùng phím `1`–`4`, P2 dùng `UP`/`DOWN` + `ENTER`.
 - Câu hỏi không bị lặp lại liên tiếp.
 - Trả lời đúng: nhận power-up và +1 điểm JS.
 - Trả lời sai hoặc hết giờ: không nhận thưởng.
 - Sau khi trả lời, game tiếp tục bình thường.
+- Item tự biến mất sau 20 giây nếu không ai nhặt.
+- Người phá crate không tự động sở hữu item.
 
 ---
 

@@ -3,7 +3,7 @@ import { TILE } from '../constants/tileTypes.js';
 export const QUIZ_DROP_RULES = {
   hiddenItemsPerRound: 10,
   spawnSafeRadius: 2,
-  itemLifetimeMs: 15000
+  itemLifetimeMs: 20000
 };
 
 export function createGridKey(row, col) {

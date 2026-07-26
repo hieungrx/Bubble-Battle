@@ -8,3 +8,10 @@ export const GAME_RULES = {
   startingWaterRange: 1,
   tileSize: 48,
 };
+
+export const POWER_UP_RULES = {
+  speedMultiplier: 1.2,
+  speedDurationMs: 15000,
+  maxBalloons: 5,
+  maxExplosionRange: 5,
+};

@@ -36,19 +36,24 @@ Tính năng Quiz System kết hợp kiến thức JavaScript vào gameplay một
 ### Cách kết hợp vào gameplay
 1. **Quiz Item** (dấu `?` vàng) xuất hiện tại vị trí thùng gỗ vừa bị phá.
 2. Khi người chơi chạm vào, GameScene tạm dừng, mở QuizScene overlay.
-3. Câu hỏi hiển thị 4 đáp án, người chơi chọn bằng phím `1`-`4`.
+3. P1 chọn đáp án bằng phím `1`-`4`, P2 chọn bằng Arrow Up/Down + Enter.
 4. Đồng hồ 10 giây đếm ngược.
-5. Trả lời đúng: nhận power-up (Speed Boost, Extra Balloon, Explosion Range).
+5. Trả lời đúng: nhận power-up (Speed Boost 15s, Extra Balloon cap 5, Explosion Range cap 5).
 6. Game tiếp tục sau khi đóng QuizScene.
 
 ### Kỹ thuật JavaScript nâng cao được áp dụng
 - **ES Modules:** `JS_QUESTIONS` export từ `src/data/jsQuestions.js`, quiz utils từ `src/utils/quiz.js`.
 - **Pure Functions:** `selectRandomQuestion()`, `isCorrectAnswer()`, `validateQuestionBank()` không có side effect, dễ kiểm thử.
-- **Event-driven architecture:** Events `crate_destroyed`, `quiz_item_collected`, `quiz_answered`, `power_up_granted` giữ các module decoupled.
-- **Timers:** Quiz countdown (10s), speed boost expiry (10s), notification auto-hide (2s).
+- **Event-driven architecture:** Events `crate_destroyed`, `quiz_answered`, `power_up_granted` giữ các module decoupled.
+- **Timers:** Quiz countdown (10s), speed boost expiry (15s), notification auto-hide (2s), item lifetime (20s).
 - **State management:** `ROUND_STATE.PAUSED` khi quiz mở, ngăn input và physics trong lúc trả lời.
-- **Array methods:** `Set` để kiểm tra ID duy nhất, `Array.filter` để loại trừ câu hỏi trùng lặp.
+- **Array methods:** `Set` cho hidden crates, `Map` cho quiz items, `Array.filter` cho eligible crates.
 - **Classes:** `QuizItem extends Phaser.GameObjects.Container`, `QuizScene extends Phaser.Scene`.
+- **Race condition prevention:** Handler tập trung `handleQuizItemOverlap` kiểm tra `activeQuizSession` trước khi claim.
+- **UI safety:** Adaptive font sizing, wordWrap, result overlay, bounds checking cho mọi text object.
+- **Input isolation:** P1 dùng `1`–`4`, P2 dùng Arrow/Enter, hai bộ input không ảnh hưởng lẫn nhau.
+- **Power-up balance:** Speed +20% × 15s, Balloon cap 5, Range cap 5, không stack multiplier.
+- **Centralized constants:** `POWER_UP_RULES` và `QUIZ_DROP_RULES` quản lý toàn bộ tham số gameplay.
 
 ---
 
@@ -107,7 +112,7 @@ Khi bóng nổ, `ExplosionSystem` phát tán tia nước theo 4 hướng (`UP`, 
 ---
 
 ## 12. Kịch bản Demo 2-3 Phút
-1. **0:00 - 0:30:** Mở game (`npm run dev`), giới thiệu MenuScene và bảng hướng dẫn phím bấm cho P1 và P2.
+1. **0:00 - 0:30:** Mở game (`npm run dev`), giới thiệu MenuScene và bảng hướng dẫn phím bấm cho P1 (1-4) và P2 (Arrow + Enter).
 2. **0:30 - 1:15:** Nhấn Space vào trận. Di chuyển P1 (WASD) và P2 (Phím mũi tên), phá hủy thùng gỗ (`CRATE`) để mở đường. Demo Quiz Item xuất hiện, nhặt và trả lời câu hỏi JS, nhận power-up.
 3. **1:15 - 2:00:** Đặt bóng nước (`SPACE` / `ENTER`), demo tính năng đi xuyên qua bóng lúc vừa đặt và bị chặn lại khi quay lại.
 4. **2:00 - 2:30:** Bẫy đối thủ vào nước (`TRAPPED`), chờ đếm ngược biến thành `DEAD` và chuyển sang `ResultScene` hiển thị màn hình chiến thắng.

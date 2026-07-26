@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { PLAYER_STATE } from '../constants/gameStates.js';
-import { GAME_RULES } from '../constants/gameRules.js';
+import { GAME_RULES, POWER_UP_RULES } from '../constants/gameRules.js';
 
 export default class Player extends Phaser.Physics.Arcade.Sprite {
   constructor(scene, id, x, y) {
@@ -102,7 +102,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.scene.events.emit('player_dead', this);
   }
 
-  applySpeedBoost(multiplier = 1.2, durationMs = 10000) {
+  applySpeedBoost(multiplier = POWER_UP_RULES.speedMultiplier, durationMs = POWER_UP_RULES.speedDurationMs) {
     if (this.speedBoostTimer) {
       this.speedBoostTimer.remove(false);
       this.speedBoostTimer = null;
@@ -149,11 +149,11 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.speedIndicator.setPosition(this.x, this.y);
   }
 
-  increaseMaxBalloons(amount = 1, maximum = 3) {
+  increaseMaxBalloons(amount = 1, maximum = POWER_UP_RULES.maxBalloons) {
     this.maxBalloons = Math.min(this.maxBalloons + amount, maximum);
   }
 
-  increaseExplosionRange(amount = 1, maximum = 3) {
+  increaseExplosionRange(amount = 1, maximum = POWER_UP_RULES.maxExplosionRange) {
     this.waterRange = Math.min(this.waterRange + amount, maximum);
   }
 

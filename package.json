@@ -13,8 +13,9 @@
     "test": "vitest run",
     "test:production": "node scripts/verify-production-build.js",
     "test:browser": "npm run build:test && node scripts/verify-browser.js",
-    "test:quiz-browser": "node scripts/verify-quiz.js",
-    "qa": "npm run test && npm run build && npm run test:production && npm run test:browser && npm run test:quiz-browser",
+    "test:quiz-browser": "npm run build:test && node scripts/verify-quiz.js",
+    "qa:browser": "npm run build:test && node scripts/verify-browser.js && node scripts/verify-quiz.js",
+    "qa": "npm run test && npm run build && npm run test:production && npm run qa:browser",
     "screenshots": "npm run build:test && node scripts/capture-screenshots.js"
   },
   "dependencies": {

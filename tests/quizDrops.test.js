@@ -5,8 +5,10 @@ import {
   isInsideSpawnSafeZone,
   getEligibleCrates,
   shuffleCopy,
-  selectHiddenQuizCrates
+  selectHiddenQuizCrates,
+  QUIZ_DROP_RULES
 } from '../src/utils/quizDrops.js';
+import { LEVEL_01 } from '../src/data/level01.js';
 import { TILE } from '../src/constants/tileTypes.js';
 
 describe('createGridKey', () => {
@@ -151,5 +153,62 @@ describe('selectHiddenQuizCrates', () => {
   it('should produce deterministic result with seeded random', () => {
     const result = selectHiddenQuizCrates(eligible, 3, () => 0.5);
     expect(result.length).toBe(3);
+  });
+});
+
+describe('QUIZ_DROP_RULES constants', () => {
+  it('should have itemLifetimeMs of 20000', () => {
+    expect(QUIZ_DROP_RULES.itemLifetimeMs).toBe(20000);
+  });
+
+  it('should have hiddenItemsPerRound of 10', () => {
+    expect(QUIZ_DROP_RULES.hiddenItemsPerRound).toBe(10);
+  });
+
+  it('should have spawnSafeRadius of 2', () => {
+    expect(QUIZ_DROP_RULES.spawnSafeRadius).toBe(2);
+  });
+});
+
+describe('Level 01 crate counts', () => {
+  const spawnPoints = [{ row: 1, col: 1 }, { row: 9, col: 13 }];
+
+  it('should have exactly 72 CRATE tiles in LEVEL_01', () => {
+    let count = 0;
+    for (const row of LEVEL_01) {
+      for (const cell of row) {
+        if (cell === TILE.CRATE) count++;
+      }
+    }
+    expect(count).toBe(72);
+  });
+
+  it('should have exactly 68 eligible crates after safe-zone filtering', () => {
+    const eligible = getEligibleCrates(LEVEL_01, spawnPoints);
+    expect(eligible.length).toBe(68);
+  });
+
+  it('should select exactly 10 hidden crates from eligible pool', () => {
+    const eligible = getEligibleCrates(LEVEL_01, spawnPoints);
+    const selected = selectHiddenQuizCrates(eligible, 10);
+    expect(selected.length).toBe(10);
+  });
+
+  it('should have no duplicate coordinates in selection', () => {
+    const eligible = getEligibleCrates(LEVEL_01, spawnPoints);
+    const selected = selectHiddenQuizCrates(eligible, 10);
+    const keys = new Set(selected.map(c => createGridKey(c.row, c.col)));
+    expect(keys.size).toBe(10);
+  });
+
+  it('should exclude all spawn-adjacent positions', () => {
+    const eligible = getEligibleCrates(LEVEL_01, spawnPoints);
+    const eligibleSet = new Set(eligible.map(c => createGridKey(c.row, c.col)));
+    // (1,3) and (3,1) should be excluded from (1,1) safe zone radius 2
+    expect(eligibleSet.has(createGridKey(1, 3))).toBe(false);
+    expect(eligibleSet.has(createGridKey(3, 1))).toBe(false);
+    // (7,13) and (9,11) should be excluded from (9,13) safe zone radius 2
+    expect(eligibleSet.has(createGridKey(7, 13))).toBe(false);
+    expect(eligibleSet.has(createGridKey(9, 11))).toBe(false);
   });
 });

@@ -2,6 +2,24 @@ import Phaser from 'phaser';
 import { POWER_UP_DISPLAY } from '../constants/powerUps.js';
 
 const QUIZ_TIME_LIMIT = 10000;
+const PANEL_W = 760;
+const PANEL_H = 560;
+const PANEL_X = 400;
+const PANEL_Y = 300;
+const BOUNDS = { left: 20, right: 780, top: 20, bottom: 580 };
+
+function getQuestionFontSize(question) {
+  if (question.length > 140) return 14;
+  if (question.length > 90) return 16;
+  return 18;
+}
+
+function getAnswerFontSize(answer) {
+  if (answer.length > 85) return 13;
+  if (answer.length > 55) return 14;
+  if (answer.length > 35) return 15;
+  return 17;
+}
 
 export default class QuizScene extends Phaser.Scene {
   constructor() {
@@ -16,7 +34,9 @@ export default class QuizScene extends Phaser.Scene {
     this.countdownText = null;
     this.keys = [];
     this.p2SelectedIndex = 0;
-    this.p2Markers = [];
+    this.p2Cursor = null;
+    this.answerBoxes = [];
+    this.resultOverlayElements = [];
   }
 
   create() {
@@ -28,53 +48,93 @@ export default class QuizScene extends Phaser.Scene {
     }
 
     const isP1 = this.playerId === 1;
-    const playerLabel = isP1 ? 'P1 (Đỏ)' : 'P2 (Xanh)';
+    const playerLabel = isP1 ? 'P1' : 'P2';
     const playerColor = isP1 ? '#ef4444' : '#3b82f6';
 
-    const bg = this.add.rectangle(400, 300, 700, 420, 0x0f172a, 0.95);
+    const bg = this.add.rectangle(PANEL_X, PANEL_Y, PANEL_W, PANEL_H, 0x0f172a, 0.95);
     bg.setStrokeStyle(3, 0xf59e0b);
     bg.setInteractive();
 
-    this.add.text(400, 140, `JavaScript Quiz - ${playerLabel}`, {
-      fontSize: '22px',
+    this.add.text(PANEL_X, 100, `JavaScript Quiz - ${playerLabel}`, {
+      fontSize: '20px',
       fill: playerColor,
       fontStyle: 'bold'
     }).setOrigin(0.5);
 
-    this.add.text(400, 200, this.questionData.question, {
-      fontSize: '18px',
+    const qFontSize = getQuestionFontSize(this.questionData.question);
+    this.add.text(PANEL_X, 170, this.questionData.question, {
+      fontSize: `${qFontSize}px`,
       fill: '#ffffff',
-      wordWrap: { width: 620 },
-      align: 'center'
+      wordWrap: { width: 660, useAdvancedWrap: true },
+      align: 'center',
+      lineSpacing: 4
     }).setOrigin(0.5);
 
     const answerColors = ['#ef4444', '#3b82f6', '#22c55e', '#f59e0b'];
     const answerLabels = ['A', 'B', 'C', 'D'];
 
-    for (let i = 0; i < 4; i++) {
-      const y = 270 + i * 45;
-      const btnBg = this.add.rectangle(400, y, 500, 38, 0x1e293b, 0.9);
-      btnBg.setStrokeStyle(1, answerColors[i]);
+    const answerStartY = 230;
+    const answerSpacing = 6;
+    const layoutY = [];
 
-      const prefix = isP1 ? `${i + 1}` : (this.p2SelectedIndex === i ? '>' : ' ');
-      const txt = this.add.text(250, y, `${prefix} ${answerLabels[i]}. ${this.questionData.answers[i]}`, {
-        fontSize: '17px',
-        fill: answerColors[i]
-      }).setOrigin(0.5);
-      this.p2Markers.push(txt);
+    let currentY = answerStartY;
+    for (let i = 0; i < 4; i++) {
+      const ansFontSize = getAnswerFontSize(this.questionData.answers[i]);
+      const boxHeight = Math.max(54, ansFontSize * 3.5);
+      layoutY.push({ y: currentY, height: boxHeight });
+      currentY += boxHeight + answerSpacing;
     }
 
-    this.add.text(400, 460,
+    this.answerBoxes = [];
+
+    for (let i = 0; i < 4; i++) {
+      const { y, height } = layoutY[i];
+      const ansFontSize = getAnswerFontSize(this.questionData.answers[i]);
+
+      const boxBg = this.add.rectangle(PANEL_X, y + height / 2, 600, height, 0x1e293b, 0.9);
+      boxBg.setStrokeStyle(1, answerColors[i]);
+
+      const prefixText = isP1 ? `${i + 1}` : ' ';
+      const prefix = this.add.text(BOUNDS.left + 40, y + height / 2, prefixText, {
+        fontSize: '16px',
+        fill: answerColors[i],
+        fontStyle: 'bold'
+      }).setOrigin(0.5);
+
+      const label = answerLabels[i];
+      const answerText = this.questionData.answers[i];
+      const displayText = `${label}. ${answerText}`;
+
+      const ansText = this.add.text(BOUNDS.left + 80, y + height / 2, displayText, {
+        fontSize: `${ansFontSize}px`,
+        fill: answerColors[i],
+        wordWrap: { width: 520, useAdvancedWrap: true },
+        lineSpacing: 2
+      }).setOrigin(0, 0.5);
+
+      this.answerBoxes.push({ bg: boxBg, prefix, ansText, isP1, y, height, idx: i });
+    }
+
+    if (!isP1) {
+      this.p2Cursor = this.add.text(this.getCursorX(), this.getCursorY(), '>', {
+        fontSize: '20px',
+        fill: '#ffffff',
+        fontStyle: 'bold'
+      }).setOrigin(0.5);
+      this.updateP2CursorPosition();
+    }
+
+    this.add.text(PANEL_X, BOUNDS.bottom - 12,
       isP1 ? 'Player 1: Nhan 1, 2, 3, 4 de tra loi'
             : 'Player 2: Dung PHIM LEN/XUONG chon — ENTER xac nhan',
-      { fontSize: '14px', fill: '#888888' }
+      { fontSize: '13px', fill: '#888888' }
     ).setOrigin(0.5);
 
-    this.countdownText = this.add.text(400, 500, '', {
+    this.countdownText = this.add.text(PANEL_X, BOUNDS.bottom - 36, '', {
       fontSize: '20px',
       fill: '#f59e0b',
       fontStyle: 'bold'
-    }).setOrigin(0.5);
+    }).setOrigin(0.5).setDepth(10);
 
     if (isP1) {
       this.setupP1Input();
@@ -93,6 +153,23 @@ export default class QuizScene extends Phaser.Scene {
     });
 
     this.scene.pause('GameScene');
+  }
+
+  getCursorX() {
+    return BOUNDS.left + 40;
+  }
+
+  getCursorY() {
+    if (this.answerBoxes.length === 0) return 230 + 27;
+    return this.answerBoxes[0].y + this.answerBoxes[0].height / 2;
+  }
+
+  updateP2CursorPosition() {
+    if (!this.p2Cursor) return;
+    const box = this.answerBoxes[this.p2SelectedIndex];
+    if (!box) return;
+    this.p2Cursor.setPosition(this.getCursorX(), box.y + box.height / 2);
+    this.p2Cursor.setDepth(20);
   }
 
   setupP1Input() {
@@ -119,29 +196,19 @@ export default class QuizScene extends Phaser.Scene {
     upKey.on('down', () => {
       if (this.answered) return;
       this.p2SelectedIndex = Math.max(0, this.p2SelectedIndex - 1);
-      this.updateP2Markers();
+      this.updateP2CursorPosition();
     });
 
     downKey.on('down', () => {
       if (this.answered) return;
       this.p2SelectedIndex = Math.min(3, this.p2SelectedIndex + 1);
-      this.updateP2Markers();
+      this.updateP2CursorPosition();
     });
 
     enterKey.once('down', () => {
       if (this.answered) return;
       this.handleAnswer(this.p2SelectedIndex);
     });
-  }
-
-  updateP2Markers() {
-    for (let i = 0; i < 4; i++) {
-      const prefix = this.p2SelectedIndex === i ? '>' : ' ';
-      const label = ['A', 'B', 'C', 'D'];
-      if (this.p2Markers[i]) {
-        this.p2Markers[i].setText(`${prefix} ${label[i]}. ${this.questionData.answers[i]}`);
-      }
-    }
   }
 
   tick() {
@@ -179,7 +246,7 @@ export default class QuizScene extends Phaser.Scene {
       this.timerEvent = null;
     }
 
-    this.showResultBanner(correct, this.questionData.reward);
+    this.showResultOverlay(correct, this.questionData.reward);
 
     this.time.delayedCall(1400, () => {
       this.returnResult(correct, this.questionData.reward);
@@ -193,66 +260,92 @@ export default class QuizScene extends Phaser.Scene {
     this.keys.forEach(k => k.removeAllListeners());
     this.keys = [];
 
-    this.showTimeoutBanner();
+    this.showTimeoutOverlay();
 
     this.time.delayedCall(1400, () => {
       this.returnResult(false, null);
     });
   }
 
-  showResultBanner(correct, reward) {
+  showResultOverlay(correct, reward) {
     const playerLabel = this.playerId === 1 ? 'P1' : 'P2';
 
+    // Dim answer area slightly
+    for (const box of this.answerBoxes) {
+      if (box.bg) box.bg.setAlpha(0.4);
+    }
+
+    // Overlay background
+    const overlayBg = this.add.rectangle(PANEL_X, PANEL_Y + 20, 500, 140, 0x000000, 0.85);
+    overlayBg.setStrokeStyle(2, correct ? '#22c55e' : '#ef4444');
+    overlayBg.setDepth(50);
+    this.resultOverlayElements.push(overlayBg);
+
     if (correct) {
-      this.add.text(400, 520, 'CHINH XAC!', {
-        fontSize: '36px',
+      const correctText = this.add.text(PANEL_X, PANEL_Y - 10, 'CHÍNH XÁC!', {
+        fontSize: '32px',
         fill: '#22c55e',
         fontStyle: 'bold',
         stroke: '#000000',
         strokeThickness: 4
-      }).setOrigin(0.5);
+      }).setOrigin(0.5).setDepth(51);
+      this.resultOverlayElements.push(correctText);
 
       const display = POWER_UP_DISPLAY[reward];
       const rewardName = display ? display.label : reward;
 
-      this.add.text(400, 555, `${playerLabel} NHAN: ${rewardName}`, {
-        fontSize: '22px',
+      const rewardText = this.add.text(PANEL_X, PANEL_Y + 35, `${playerLabel} NHẬN: ${rewardName}`, {
+        fontSize: '20px',
         fill: '#ffd700',
         fontStyle: 'bold',
         stroke: '#000000',
         strokeThickness: 3
-      }).setOrigin(0.5);
+      }).setOrigin(0.5).setDepth(51);
+      this.resultOverlayElements.push(rewardText);
     } else {
-      this.add.text(400, 520, 'CHUA CHINH XAC', {
-        fontSize: '32px',
+      const wrongText = this.add.text(PANEL_X, PANEL_Y - 10, 'CHƯA CHÍNH XÁC', {
+        fontSize: '28px',
         fill: '#ef4444',
         fontStyle: 'bold',
         stroke: '#000000',
         strokeThickness: 4
-      }).setOrigin(0.5);
+      }).setOrigin(0.5).setDepth(51);
+      this.resultOverlayElements.push(wrongText);
 
-      this.add.text(400, 555, 'KHONG NHAN DUOC VAT PHAM', {
-        fontSize: '18px',
+      const noRewardText = this.add.text(PANEL_X, PANEL_Y + 35, 'KHÔNG NHẬN ĐƯỢC VẬT PHẨM', {
+        fontSize: '17px',
         fill: '#aaaaaa',
         fontStyle: 'bold'
-      }).setOrigin(0.5);
+      }).setOrigin(0.5).setDepth(51);
+      this.resultOverlayElements.push(noRewardText);
     }
   }
 
-  showTimeoutBanner() {
-    this.add.text(400, 520, 'HET GIO', {
-      fontSize: '36px',
+  showTimeoutOverlay() {
+    for (const box of this.answerBoxes) {
+      if (box.bg) box.bg.setAlpha(0.4);
+    }
+
+    const overlayBg = this.add.rectangle(PANEL_X, PANEL_Y + 20, 500, 140, 0x000000, 0.85);
+    overlayBg.setStrokeStyle(2, '#ef4444');
+    overlayBg.setDepth(50);
+    this.resultOverlayElements.push(overlayBg);
+
+    const timeoutText = this.add.text(PANEL_X, PANEL_Y - 10, 'HẾT GIỜ', {
+      fontSize: '32px',
       fill: '#ef4444',
       fontStyle: 'bold',
       stroke: '#000000',
       strokeThickness: 4
-    }).setOrigin(0.5);
+    }).setOrigin(0.5).setDepth(51);
+    this.resultOverlayElements.push(timeoutText);
 
-    this.add.text(400, 555, 'KHONG NHAN DUOC VAT PHAM', {
-      fontSize: '18px',
+    const noRewardText = this.add.text(PANEL_X, PANEL_Y + 35, 'KHÔNG NHẬN ĐƯỢC VẬT PHẨM', {
+      fontSize: '17px',
       fill: '#aaaaaa',
       fontStyle: 'bold'
-    }).setOrigin(0.5);
+    }).setOrigin(0.5).setDepth(51);
+    this.resultOverlayElements.push(noRewardText);
   }
 
   returnResult(correct, reward) {
@@ -278,7 +371,9 @@ export default class QuizScene extends Phaser.Scene {
       try { k.removeAllListeners(); } catch (e) { /* ignore */ }
     });
     this.keys = [];
-    this.p2Markers = [];
+    this.answerBoxes = [];
+    this.resultOverlayElements = [];
+    this.p2Cursor = null;
     this.questionData = null;
   }
 }

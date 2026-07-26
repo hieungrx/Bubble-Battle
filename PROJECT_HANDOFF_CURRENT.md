@@ -7,18 +7,25 @@ Bubble Battle: Campus Chaos
 feature/bubble-battle-asm
 
 ## Current Package
-Educational JavaScript Quiz System — Post-QA Fix Round
+Competitive 10-Item Quiz System — Final Hardening
 
 ## Completed
 - Trapped player resolution fix (`resolvePlayerStates` helper with 6 Vitest unit tests)
 - Damage lock after round end in `handlePlayerHit()`
 - WaterBalloon static physics body unification (`scene.physics.add.existing(this, true)`)
-- Automated Vitest test suite (`npm run test`)
+- Automated Vitest test suite (`npm run test` — 76 tests across 4 test files)
 - Automated Playwright browser verification (`node scripts/verify-browser.js`)
 - Educational JavaScript Quiz System (10 questions, QuizScene overlay, 3 power-ups)
-- Post-QA defect fixes (range snapshot, scene lifecycle safety, tween cleanup, unused code removal)
-- Automated Quiz browser tests (`scripts/verify-quiz.js` — 9 test cases)
-- Documentation updates
+- Competitive quiz race condition fix (`handleQuizItemOverlap` checks `activeQuizSession` BEFORE `item.claim()`)
+- Quiz text overflow fix (760×560 panel, adaptive fonts, separate cursor, result overlay, wordWrap)
+- P1/P2 input isolation (P1: 1-4, P2: Arrow Up/Down + Enter)
+- Power-up balance update (+20% speed, 15s duration, Balloon cap 5, Range cap 5)
+- Centralized `POWER_UP_RULES` constants (no hard-coded values)
+- Item lifetime increased to 20s (from 15s)
+- 18 hardened browser tests (no false-pass branches, strict exact assertions)
+- Crate count verification (72 total, 68 eligible, 10 selected per round)
+- `qa:browser` script avoiding duplicate builds
+- Documentation updates (README, TEST_REPORT, PRESENTATION_GUIDE)
 
 ## Commands
 npm run dev
@@ -26,13 +33,14 @@ npm run test
 npm run build
 npm run preview
 npm run qa
+npm run qa:browser
 npm run test:quiz-browser
 
 ## Build Status
 Pass
 
 ## Manual Test Status
-Automated Vitest unit tests (25/25 PASS), Playwright gameplay tests (ALL PASS), Playwright quiz tests (9/9 PASS). Manual playthrough: NOT VERIFIED.
+Automated Vitest unit tests (76/76 PASS), Playwright gameplay tests (ALL PASS), Playwright quiz tests (18/18 PASS). Manual playthrough: NOT VERIFIED.
 
 ## Known Bugs
 None observed during executed tests.
@@ -46,27 +54,31 @@ None observed during executed tests.
 - Added Quiz system: `src/data/jsQuestions.js` (10 questions), `src/utils/quiz.js` (pure functions), `src/entities/QuizItem.js`, `src/scenes/QuizScene.js` overlay.
 - Balloon range captured at placement time (not explosion) for correct power-up semantics.
 - GameScene shutdown stops QuizScene to prevent accessing dead scene during round transition.
-- QuizScene returnResult guards against shutdown GameScene using `scene.isPaused()` check.
+- Race condition fix: `handleQuizItemOverlap` handler checks all conditions before `item.claim()`.
+- QuizScene layout: 760×560 panel, adaptive font sizing, separate P2 cursor, result overlay with depth.
+- Centralized `POWER_UP_RULES` in `src/constants/gameRules.js` (speedMultiplier: 1.2, speedDurationMs: 15000, maxBalloons: 5, maxExplosionRange: 5).
+- Item lifetime extended to 20000ms in `QUIZ_DROP_RULES.itemLifetimeMs`.
+- Browser test script hardened with 18 strict tests — no false-pass INFO/PASS branches.
 
 ## Files Changed
 - package.json
-- src/config.js
+- src/constants/gameRules.js
 - src/scenes/GameScene.js
-- src/scenes/QuizScene.js (NEW)
-- src/scenes/ResultScene.js
+- src/scenes/QuizScene.js
 - src/entities/Player.js
 - src/entities/WaterBalloon.js
-- src/entities/QuizItem.js (NEW)
-- src/data/jsQuestions.js (NEW)
-- src/utils/quiz.js (NEW)
-- src/systems/ExplosionSystem.js
-- src/systems/RoundManager.js
-- tests/quiz.test.js (NEW)
-- scripts/verify-quiz.js (NEW)
+- src/entities/QuizItem.js
+- src/data/jsQuestions.js
+- src/utils/quiz.js
+- src/utils/quizDrops.js
+- scripts/verify-quiz.js
+- tests/quizDrops.test.js
+- tests/powerUps.test.js (NEW)
 - README.md
 - docs/PRESENTATION_GUIDE.md
 - docs/TEST_REPORT.md
 - PROJECT_HANDOFF_CURRENT.md
+- docs/SUBMISSION_CHECKLIST.md
 
 ## Scope Exclusions
 Multiplayer, WebSocket, Backend, DB, Login, 3D, Custom Assets, AI Bot, Online.

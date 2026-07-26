@@ -4,7 +4,7 @@ import { JS_QUESTIONS } from '../data/jsQuestions.js';
 import GridMapSystem from '../systems/GridMapSystem.js';
 import ExplosionSystem from '../systems/ExplosionSystem.js';
 import RoundManager from '../systems/RoundManager.js';
-import { GAME_RULES } from '../constants/gameRules.js';
+import { GAME_RULES, POWER_UP_RULES } from '../constants/gameRules.js';
 import { ROUND_STATE } from '../constants/gameStates.js';
 import Player from '../entities/Player.js';
 import WaterBalloon from '../entities/WaterBalloon.js';
@@ -116,22 +116,8 @@ export default class GameScene extends Phaser.Scene {
     this.events.on('quiz_answered', this.handleQuizAnswered, this);
     this.events.on('quiz_item_despawned', this.handleQuizItemDespawned, this);
 
-    this.physics.add.overlap(this.player1, this.quizItemsGroup, (player, item) => {
-      if (item.active && !item.claimed && !item.collected) {
-        const claimed = item.claim(player);
-        if (claimed) {
-          this.handleQuizItemClaimed(player.id, item);
-        }
-      }
-    });
-    this.physics.add.overlap(this.player2, this.quizItemsGroup, (player, item) => {
-      if (item.active && !item.claimed && !item.collected) {
-        const claimed = item.claim(player);
-        if (claimed) {
-          this.handleQuizItemClaimed(player.id, item);
-        }
-      }
-    });
+    this.physics.add.overlap(this.player1, this.quizItemsGroup, this.handleQuizItemOverlap, null, this);
+    this.physics.add.overlap(this.player2, this.quizItemsGroup, this.handleQuizItemOverlap, null, this);
 
     // Add HUD
     this.createHUD();
@@ -175,12 +161,12 @@ export default class GameScene extends Phaser.Scene {
     }).setOrigin(1, 0).setScrollFactor(0);
 
     // Power-up HUD
-    this.p1BalloonHud = this.add.text(30, 58, `BALLOON: ${GAME_RULES.startingBalloonLimit}/3`, {
+    this.p1BalloonHud = this.add.text(30, 58, `BALLOON: ${GAME_RULES.startingBalloonLimit}/${POWER_UP_RULES.maxBalloons}`, {
       fontSize: '11px',
       fill: '#94a3b8'
     }).setScrollFactor(0);
 
-    this.p1RangeHud = this.add.text(30, 72, `RANGE: ${GAME_RULES.startingWaterRange}/3`, {
+    this.p1RangeHud = this.add.text(30, 72, `RANGE: ${GAME_RULES.startingWaterRange}/${POWER_UP_RULES.maxExplosionRange}`, {
       fontSize: '11px',
       fill: '#94a3b8'
     }).setScrollFactor(0);
@@ -190,12 +176,12 @@ export default class GameScene extends Phaser.Scene {
       fill: '#94a3b8'
     }).setScrollFactor(0);
 
-    this.p2BalloonHud = this.add.text(770, 58, `BALLOON: ${GAME_RULES.startingBalloonLimit}/3`, {
+    this.p2BalloonHud = this.add.text(770, 58, `BALLOON: ${GAME_RULES.startingBalloonLimit}/${POWER_UP_RULES.maxBalloons}`, {
       fontSize: '11px',
       fill: '#94a3b8'
     }).setOrigin(1, 0).setScrollFactor(0);
 
-    this.p2RangeHud = this.add.text(770, 72, `RANGE: ${GAME_RULES.startingWaterRange}/3`, {
+    this.p2RangeHud = this.add.text(770, 72, `RANGE: ${GAME_RULES.startingWaterRange}/${POWER_UP_RULES.maxExplosionRange}`, {
       fontSize: '11px',
       fill: '#94a3b8'
     }).setOrigin(1, 0).setScrollFactor(0);
@@ -241,8 +227,8 @@ export default class GameScene extends Phaser.Scene {
     const rangeHud = isP1 ? this.p1RangeHud : this.p2RangeHud;
     const speedHud = isP1 ? this.p1SpeedHud : this.p2SpeedHud;
 
-    balloonHud?.setText(`BALLOON: ${player.maxBalloons}/3`);
-    rangeHud?.setText(`RANGE: ${player.waterRange}/3`);
+    balloonHud?.setText(`BALLOON: ${player.maxBalloons}/${POWER_UP_RULES.maxBalloons}`);
+    rangeHud?.setText(`RANGE: ${player.waterRange}/${POWER_UP_RULES.maxExplosionRange}`);
 
     if (player.speedBoostActive) {
       const remaining = player.getSpeedBoostRemaining();
@@ -273,6 +259,28 @@ export default class GameScene extends Phaser.Scene {
     quizItem.body.setOffset(-14, -14);
     this.quizItems.set(quizItem.itemId, quizItem);
     this.events.emit('quiz_item_spawned', { row, col });
+  }
+
+  handleQuizItemOverlap(player, item) {
+    if (
+      !player ||
+      !item ||
+      this.activeQuizSession ||
+      !this.roundManager ||
+      this.roundManager.state !== ROUND_STATE.PLAYING ||
+      !this.quizItems?.has(item.itemId) ||
+      item.claimed ||
+      item.collected ||
+      !item.active
+    ) {
+      return;
+    }
+
+    if (!item.claim(player)) {
+      return;
+    }
+
+    this.handleQuizItemClaimed(player.id, item);
   }
 
   handleQuizItemClaimed(playerId, item) {
