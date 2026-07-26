@@ -514,6 +514,18 @@ export default class GameScene extends Phaser.Scene {
       this
     );
 
+    this.events.off(
+      'power_up_granted',
+      this.handlePowerUpGranted,
+      this
+    );
+
+    this.events.off(
+      'speed_boost_ended',
+      this.handleSpeedBoostEnded,
+      this
+    );
+
     if (this.notificationTimer) {
       this.notificationTimer.remove(false);
       this.notificationTimer = null;

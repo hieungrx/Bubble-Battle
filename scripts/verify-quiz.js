@@ -10,6 +10,20 @@ const PORT = 4179;
 const URL = `http://localhost:${PORT}`;
 const START_TIMEOUT = 15000;
 
+let passedTests = 0;
+let executedTests = 0;
+function assertCondition(condition, testName, message, errors) {
+  executedTests++;
+  if (!condition) {
+    errors.push(`${testName} FAIL: ${message}`);
+    console.log(`FAIL: ${testName} - ${message}`);
+    return false;
+  }
+  passedTests++;
+  console.log(`PASS: ${testName} - ${message}`);
+  return true;
+}
+
 async function waitForServer(url, timeoutMs = 15000) {
   const startedAt = Date.now();
   while (Date.now() - startedAt < timeoutMs) {
@@ -36,15 +50,22 @@ async function getGameState(page) {
         waterRange: scene.player1.waterRange,
         speedBoostActive: scene.player1.speedBoostActive,
         x: scene.player1.x,
-        y: scene.player1.y
+        y: scene.player1.y,
+        baseSpeed: scene.player1.baseSpeed ?? 150,
+        speedBoostEndTime: scene.player1.speedBoostEndTime ?? null,
+        speedBoostRemaining: scene.player1.getSpeedBoostRemaining ? scene.player1.getSpeedBoostRemaining() : null,
       },
       p2: {
         jsCorrectCount: scene.player2.jsCorrectCount,
+        speed: scene.player2.speed,
         maxBalloons: scene.player2.maxBalloons,
         waterRange: scene.player2.waterRange,
         speedBoostActive: scene.player2.speedBoostActive,
         x: scene.player2.x,
-        y: scene.player2.y
+        y: scene.player2.y,
+        baseSpeed: scene.player2.baseSpeed ?? 150,
+        speedBoostEndTime: scene.player2.speedBoostEndTime ?? null,
+        speedBoostRemaining: scene.player2.getSpeedBoostRemaining ? scene.player2.getSpeedBoostRemaining() : null,
       },
       quizItemsCount: scene.quizItems ? scene.quizItems.size : 0,
       hasActiveSession: !!scene.activeQuizSession,
@@ -57,6 +78,10 @@ async function getGameState(page) {
         crate_destroyed: scene.events.listenerCount('crate_destroyed'),
         quiz_answered: scene.events.listenerCount('quiz_answered'),
         quiz_item_despawned: scene.events.listenerCount('quiz_item_despawned'),
+        power_up_granted: scene.events.listenerCount('power_up_granted'),
+        speed_boost_ended: scene.events.listenerCount('speed_boost_ended'),
+        timer_tick: scene.events.listenerCount('timer_tick'),
+        request_place_balloon: scene.events.listenerCount('request_place_balloon'),
       }
     };
   });
@@ -221,16 +246,12 @@ async function restartGame(page) {
     let state = await getGameState(page);
     console.log(`  Started. Hidden crates: ${state.hiddenQuizCratesSize}`);
 
-    // ===== TEST 1: Exact hidden crates ====
+    // ===== TEST 1: Exact 10 hidden crates =====
     console.log('\n=== Test 1: Exact 10 hidden crates ===');
-    if (state.hiddenQuizCratesSize !== 10) {
-      errors.push(`Test 1 FAIL: Expected 10 hidden crates, got ${state.hiddenQuizCratesSize}`);
-      console.log(`FAIL: ${state.hiddenQuizCratesSize} hidden crates, expected 10`);
-    } else {
-      console.log('PASS: 10 hidden crates selected');
-    }
+    assertCondition(state.hiddenQuizCratesSize === 10, 'Test 1',
+      `Expected 10 hidden crates, got ${state.hiddenQuizCratesSize}`, errors);
 
-    // ===== TEST 2: Normal crate no spawn ====
+    // ===== TEST 2: Normal crate no spawn =====
     console.log('\n=== Test 2: Normal crate does NOT spawn item ===');
     const normalCrate = await page.evaluate(() => {
       const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
@@ -245,8 +266,7 @@ async function restartGame(page) {
       return null;
     });
     if (!normalCrate) {
-      errors.push('Test 2 FAIL: Could not find any normal (non-hidden) crate');
-      console.log('FAIL: No normal crate found');
+      assertCondition(false, 'Test 2', 'No normal crate found', errors);
     } else {
       await page.evaluate((p) => {
         const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
@@ -254,24 +274,19 @@ async function restartGame(page) {
       }, normalCrate);
       await page.waitForTimeout(300);
       state = await getGameState(page);
-      if (state.quizItemsCount !== 0) {
-        errors.push('Test 2 FAIL: Item spawned from normal crate');
-        console.log(`FAIL: ${state.quizItemsCount} items spawned from normal crate`);
-      } else {
-        console.log('PASS: No item from normal crate');
-      }
+      assertCondition(state.quizItemsCount === 0, 'Test 2',
+        `Expected 0 items from normal crate, got ${state.quizItemsCount}`, errors);
     }
 
-    // ===== TEST 3: Hidden crate spawns exactly 1 item ====
-    console.log('\n=== Test 3: Hidden crate spawns exactly 1 item at grid position ===');
+    // ===== TEST 3: Hidden crate spawns exactly 1 item =====
+    console.log('\n=== Test 3: Hidden crate spawns exactly 1 item ===');
     const hiddenKey = await page.evaluate(() => {
       const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
       if (gs.hiddenQuizCrates.size > 0) return [...gs.hiddenQuizCrates][0];
       return null;
     });
     if (!hiddenKey) {
-      errors.push('Test 3 FAIL: No hidden crates remaining');
-      console.log('FAIL: No hidden crates');
+      assertCondition(false, 'Test 3', 'No hidden crates', errors);
     } else {
       const [hr, hc] = hiddenKey.split(':').map(Number);
       await page.evaluate((p) => {
@@ -280,18 +295,16 @@ async function restartGame(page) {
       }, { r: hr, c: hc });
       await page.waitForTimeout(500);
       state = await getGameState(page);
-      if (state.quizItemsCount !== 1) {
-        errors.push(`Test 3 FAIL: Expected 1 item, got ${state.quizItemsCount}`);
-        console.log(`FAIL: count=${state.quizItemsCount}`);
-      } else {
+      assertCondition(state.quizItemsCount === 1, 'Test 3',
+        `Expected 1 item from hidden crate, got ${state.quizItemsCount}`, errors);
+      if (state.quizItemsCount === 1) {
         const itemDetails = await getItemDetails(page);
-        if (itemDetails.length === 1) {
-          console.log(`PASS: 1 item at grid (${itemDetails[0].gridRow},${itemDetails[0].gridCol})`);
-        }
+        assertCondition(itemDetails.length === 1, 'Test 3',
+          `Item at grid (${itemDetails[0]?.gridRow},${itemDetails[0]?.gridCol})`, errors);
       }
     }
 
-    // ===== TEST 4: Multiple items (exact count) ====
+    // ===== TEST 4: Multiple exact items (3) =====
     console.log('\n=== Test 4: Multiple items (exact 3) ===');
     const keys = await page.evaluate(() => {
       const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
@@ -306,14 +319,10 @@ async function restartGame(page) {
       await page.waitForTimeout(200);
     }
     state = await getGameState(page);
-    if (state.quizItemsCount !== 3) {
-      errors.push(`Test 4 FAIL: Expected exactly 3 items, got ${state.quizItemsCount}`);
-      console.log(`FAIL: ${state.quizItemsCount} items`);
-    } else {
-      console.log(`PASS: Exactly 3 items coexist`);
-    }
+    assertCondition(state.quizItemsCount === 3, 'Test 4',
+      `Expected exactly 3 items, got ${state.quizItemsCount}`, errors);
 
-    // ===== TEST 5: P1 input isolation ====
+    // ===== TEST 5: P1 input isolation =====
     console.log('\n=== Test 5: P1 input isolation ===');
     const itemPos = await page.evaluate(() => {
       const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
@@ -324,8 +333,7 @@ async function restartGame(page) {
       return null;
     });
     if (!itemPos) {
-      errors.push('Test 5 FAIL: No unclaimed item available');
-      console.log('FAIL: No item to claim for P1');
+      assertCondition(false, 'Test 5', 'No unclaimed item available for P1', errors);
     } else {
       await page.evaluate((p) => {
         const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
@@ -333,41 +341,32 @@ async function restartGame(page) {
       }, itemPos);
       await page.waitForTimeout(300);
       state = await getGameState(page);
-      if (!state.hasActiveSession || !state.quizSceneActive) {
-        errors.push('Test 5 FAIL: QuizScene did not open for P1');
-        console.log('FAIL: QuizScene not active');
-      } else {
-        const qs = await getQuizState(page);
-        if (qs && qs.active && qs.playerId === 1) {
-          // Try wrong keys for P1 (ArrowDown, Enter) - they should NOT affect P1 quiz
-          await page.keyboard.press('ArrowDown');
-          await page.waitForTimeout(100);
-          await page.keyboard.press('Enter');
-          await page.waitForTimeout(100);
-          const qsAfter = await getQuizState(page);
-          if (qsAfter && !qsAfter.answered) {
-            console.log('PASS: P2 keys do not affect P1 quiz');
-            // Answer with correct P1 key
-            await answerQuizP1(page, qs.correctIndex);
-            state = await getGameState(page);
-            if (state.p1.jsCorrectCount === 1) {
-              console.log(`PASS: P1 score = ${state.p1.jsCorrectCount}`);
-            } else {
-              errors.push(`Test 5 FAIL: P1 score = ${state.p1.jsCorrectCount}, expected 1`);
-            }
-          } else {
-            errors.push('Test 5 FAIL: P2 keys affected P1 quiz');
-          }
-        } else {
-          errors.push(`Test 5 FAIL: Quiz not for P1, playerId=${qs?.playerId}`);
-        }
-      }
+      assertCondition(state.hasActiveSession && state.quizSceneActive, 'Test 5',
+        'QuizScene not active for P1', errors);
+
+      const qs = await getQuizState(page);
+      assertCondition(qs && qs.active && qs.playerId === 1, 'Test 5',
+        `Quiz not for P1, playerId=${qs?.playerId}`, errors);
+
+      // Try P2 keys - should NOT affect P1 quiz
+      await page.keyboard.press('ArrowDown');
+      await page.waitForTimeout(100);
+      await page.keyboard.press('Enter');
+      await page.waitForTimeout(100);
+      const qsAfter = await getQuizState(page);
+      assertCondition(qsAfter && !qsAfter.answered, 'Test 5',
+        'P2 keys (ArrowDown + Enter) incorrectly affected P1 quiz', errors);
+
+      // Answer with correct P1 key
+      await answerQuizP1(page, qs.correctIndex);
+      state = await getGameState(page);
+      assertCondition(state.p1.jsCorrectCount === 1, 'Test 5',
+        `P1 score should be 1, got ${state.p1.jsCorrectCount}`, errors);
     }
 
-    // ===== TEST 6: P2 input isolation ====
+    // ===== TEST 6: P2 input isolation =====
     console.log('\n=== Test 6: P2 input isolation ===');
-    // Find an unclaimed item for P2
-    const p2Item = await page.evaluate(() => {
+    let p2Item = await page.evaluate(() => {
       const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
       if (gs.quizItems && gs.quizItems.size > 0) {
         for (const item of gs.quizItems.values()) {
@@ -377,7 +376,6 @@ async function restartGame(page) {
       return null;
     });
     if (!p2Item) {
-      // Try to spawn more items
       const moreKeys = await page.evaluate(() => {
         const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
         return [...gs.hiddenQuizCrates].slice(0, 3);
@@ -390,103 +388,63 @@ async function restartGame(page) {
         }, { r, c });
         await page.waitForTimeout(200);
       }
-    }
-    const p2Item2 = await page.evaluate(() => {
-      const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
-      if (gs.quizItems && gs.quizItems.size > 0) {
-        for (const item of gs.quizItems.values()) {
-          if (!item.claimed && item.active) return { x: item.x, y: item.y };
+      p2Item = await page.evaluate(() => {
+        const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
+        if (gs.quizItems && gs.quizItems.size > 0) {
+          for (const item of gs.quizItems.values()) {
+            if (!item.claimed && item.active) return { x: item.x, y: item.y };
+          }
         }
-      }
-      return null;
-    });
-    if (!p2Item2) {
-      errors.push('Test 6 FAIL: No unclaimed item for P2');
-      console.log('FAIL: No item to claim for P2');
+        return null;
+      });
+    }
+    if (!p2Item) {
+      assertCondition(false, 'Test 6', 'No unclaimed item for P2 after spawn attempts', errors);
     } else {
       await page.evaluate((p) => {
         const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
         gs.player2.setPosition(p.x, p.y);
-      }, p2Item2);
+      }, p2Item);
       await page.waitForTimeout(500);
       state = await getGameState(page);
       if (!state.quizSceneActive) {
-        // If quiz didn't open (maybe P1 claimed first), find and wait
         await page.waitForTimeout(2000);
         state = await getGameState(page);
       }
-      if (!state.quizSceneActive) {
-        // Need the item - try spawning more and waiting
-        const lastKeys = await page.evaluate(() => {
-          const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
-          return [...gs.hiddenQuizCrates].slice(0, 3);
-        });
-        for (const k of lastKeys) {
-          const [r, c] = k.split(':').map(Number);
-          await page.evaluate((p) => {
-            const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
-            gs.events.emit('crate_destroyed', { row: p.r, col: p.c, x: 0, y: 0 });
-          }, { r, c });
-          await page.waitForTimeout(200);
-        }
-        const finalItem = await page.evaluate(() => {
-          const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
-          if (gs.quizItems && gs.quizItems.size > 0) {
-            for (const item of gs.quizItems.values()) {
-              if (!item.claimed && item.active) return { x: item.x, y: item.y };
-            }
-          }
-          return null;
-        });
-        if (!finalItem) {
-          errors.push('Test 6 FAIL: Still no unclaimed item after spawn attempts');
-          console.log('FAIL: Cannot create claimable item for P2');
-        } else {
-          await page.evaluate((p) => {
-            const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
-            gs.player2.setPosition(p.x, p.y);
-          }, finalItem);
-          await page.waitForTimeout(500);
-        }
-      }
+      assertCondition(state.quizSceneActive, 'Test 6', 'QuizScene not active for P2', errors);
+
       const qs = await getQuizState(page);
-      if (qs && qs.active && qs.playerId === 2) {
-        // Try P1 keys (1-4) - they should NOT affect P2 quiz
-        await page.keyboard.press('1');
-        await page.waitForTimeout(100);
-        await page.keyboard.press('2');
-        await page.waitForTimeout(100);
-        const qsAfter = await getQuizState(page);
-        if (qsAfter && !qsAfter.answered) {
-          console.log('PASS: P1 keys do not affect P2 quiz');
-          // Verify P2 can change selection with arrows
-          await page.keyboard.press('ArrowDown');
-          await page.waitForTimeout(100);
-          const qsArrow = await getQuizState(page);
-          if (qsArrow && qsArrow.p2SelectedIndex === 1) {
-            console.log('PASS: P2 arrow changes selection');
-          }
-          await page.keyboard.press('ArrowUp');
-          await page.waitForTimeout(100);
-          await answerQuizP2(page, qs.correctIndex);
-          state = await getGameState(page);
-          if (state.p2.jsCorrectCount >= 1) {
-            console.log(`PASS: P2 score = ${state.p2.jsCorrectCount}`);
-          } else {
-            errors.push(`Test 6 FAIL: P2 score = ${state.p2.jsCorrectCount}`);
-          }
-        } else {
-          errors.push('Test 6 FAIL: P1 keys affected P2 quiz');
-        }
-      } else {
-        errors.push('Test 6 FAIL: QuizScene not active for P2');
-      }
+      assertCondition(qs && qs.active && qs.playerId === 2, 'Test 6',
+        `Quiz not for P2, playerId=${qs?.playerId}`, errors);
+
+      // Try P1 keys - should NOT affect P2 quiz
+      await page.keyboard.press('1');
+      await page.waitForTimeout(100);
+      await page.keyboard.press('2');
+      await page.waitForTimeout(100);
+      const qsAfter = await getQuizState(page);
+      assertCondition(qsAfter && !qsAfter.answered, 'Test 6',
+        'P1 keys (1,2,3,4) incorrectly affected P2 quiz', errors);
+
+      // Verify ArrowDown changes p2SelectedIndex
+      await page.keyboard.press('ArrowDown');
+      await page.waitForTimeout(100);
+      const qsArrow = await getQuizState(page);
+      assertCondition(qsArrow && qsArrow.p2SelectedIndex === 1, 'Test 6',
+        `ArrowDown did not change p2SelectedIndex, got ${qsArrow?.p2SelectedIndex}`, errors);
+
+      // Reset selection and answer correctly
+      await page.keyboard.press('ArrowUp');
+      await page.waitForTimeout(100);
+      await answerQuizP2(page, qs.correctIndex);
+      state = await getGameState(page);
+      assertCondition(state.p2.jsCorrectCount >= 1, 'Test 6',
+        `P2 score should be >= 1, got ${state.p2.jsCorrectCount}`, errors);
     }
 
-    // ===== TEST 7: Same-item double claim ====
-    console.log('\n=== Test 7: Same-item double claim ===');
-    // Find an unclaimed item
-    const sameItem = await page.evaluate(() => {
+    // ===== TEST 7: Same-item double claim STRICT =====
+    console.log('\n=== Test 7: Same-item double claim STRICT ===');
+    let doubleItem = await page.evaluate(() => {
       const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
       if (gs.quizItems && gs.quizItems.size > 0) {
         for (const item of gs.quizItems.values()) {
@@ -495,8 +453,7 @@ async function restartGame(page) {
       }
       return null;
     });
-    if (!sameItem) {
-      // Need to spawn more
+    if (!doubleItem) {
       const spawnKeys = await page.evaluate(() => {
         const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
         return [...gs.hiddenQuizCrates].slice(0, 2);
@@ -508,21 +465,25 @@ async function restartGame(page) {
           gs.events.emit('crate_destroyed', { row: p.r, col: p.c, x: 0, y: 0 });
         }, { r, c });
         await page.waitForTimeout(500);
+        doubleItem = await page.evaluate(() => {
+          const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
+          if (gs.quizItems && gs.quizItems.size > 0) {
+            for (const item of gs.quizItems.values()) {
+              if (!item.claimed && item.active) return { x: item.x, y: item.y };
+            }
+          }
+          return null;
+        });
       }
     }
-    const doubleItem = await page.evaluate(() => {
-      const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
-      if (gs.quizItems && gs.quizItems.size > 0) {
-        for (const item of gs.quizItems.values()) {
-          if (!item.claimed && item.active) return { x: item.x, y: item.y };
-        }
-      }
-      return null;
-    });
     if (!doubleItem) {
-      errors.push('Test 7 FAIL: No item for double-claim test');
-      console.log('FAIL: No item available');
+      assertCondition(false, 'Test 7', 'No item for double-claim test', errors);
     } else {
+      state = await getGameState(page);
+      const beforeP1 = state.p1.jsCorrectCount;
+      const beforeP2 = state.p2.jsCorrectCount;
+      const itemsBefore = state.quizItemsCount;
+
       // Position both players on the same item simultaneously
       await page.evaluate((p) => {
         const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
@@ -534,46 +495,41 @@ async function restartGame(page) {
       await page.waitForTimeout(500);
       state = await getGameState(page);
 
-      // Only one session should be active
-      if (!state.hasActiveSession) {
-        errors.push('Test 7 FAIL: No quiz session started from double claim');
-        console.log('FAIL: No active session');
-      } else if (!state.quizSceneActive) {
-        errors.push('Test 7 FAIL: QuizScene not visible');
-        console.log('FAIL: QuizScene not active');
+      assertCondition(state.hasActiveSession, 'Test 7', 'No quiz session started from double claim', errors);
+
+      const qs = await getQuizState(page);
+      const claimingPlayer = qs?.playerId;
+      if (claimingPlayer === 1) {
+        await answerQuizP1(page, qs.correctIndex);
+      } else if (claimingPlayer === 2) {
+        await answerQuizP2(page, qs.correctIndex);
       } else {
-        const qs = await getQuizState(page);
-        const claimingPlayer = qs?.playerId;
-        const preCount = claimingPlayer === 1 ? state.p1.jsCorrectCount : state.p2.jsCorrectCount;
-        if (claimingPlayer === 1) {
-          await answerQuizP1(page, qs.correctIndex);
-        } else {
-          await answerQuizP2(page, qs.correctIndex);
-        }
-        state = await getGameState(page);
-        const postCount = claimingPlayer === 1 ? state.p1.jsCorrectCount : state.p2.jsCorrectCount;
-        const otherCount = claimingPlayer === 1 ? state.p2.jsCorrectCount : state.p1.jsCorrectCount;
-        if (postCount === preCount + 1 && otherCount === (claimingPlayer === 1 ? 0 : state.p1.jsCorrectCount)) {
-          console.log(`PASS: Only P${claimingPlayer} claimed, score incremented correctly`);
-        } else {
-          console.log(`Claimed by P${claimingPlayer}, pre=${preCount}, post=${postCount}, other=${otherCount}`);
-        }
+        assertCondition(false, 'Test 7', `Unexpected playerId in quiz: ${claimingPlayer}`, errors);
       }
+
+      state = await getGameState(page);
+      const afterP1 = state.p1.jsCorrectCount;
+      const afterP2 = state.p2.jsCorrectCount;
+      const p1Delta = afterP1 - beforeP1;
+      const p2Delta = afterP2 - beforeP2;
+      const itemsAfter = state.quizItemsCount;
+
+      assertCondition((p1Delta === 1 && p2Delta === 0) || (p1Delta === 0 && p2Delta === 1), 'Test 7',
+        `Double claim check failed: p1Delta=${p1Delta}, p2Delta=${p2Delta}`, errors);
+      assertCondition(itemsAfter === itemsBefore - 1, 'Test 7',
+        `Item should be consumed exactly once (was ${itemsBefore}, now ${itemsAfter})`, errors);
     }
 
-    // ===== TEST 8: Two-item race condition ====
-    console.log('\n=== Test 8: Two-item race condition ===');
-    // Need two items to exist simultaneously
+    // ===== TEST 8: Two-item race STRICT (deterministic handler calls) =====
+    console.log('\n=== Test 8: Two-item race STRICT ===');
     await restartGame(page);
     state = await getGameState(page);
-    // Spawn two hidden crates
     const twoKeys = await page.evaluate(() => {
       const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
       return [...gs.hiddenQuizCrates].slice(0, 2);
     });
     if (twoKeys.length < 2) {
-      errors.push('Test 8 FAIL: Not enough hidden crates');
-      console.log('FAIL: Less than 2 hidden crates');
+      assertCondition(false, 'Test 8', 'Not enough hidden crates (need 2)', errors);
     } else {
       for (const k of twoKeys) {
         const [r, c] = k.split(':').map(Number);
@@ -584,66 +540,116 @@ async function restartGame(page) {
         await page.waitForTimeout(200);
       }
       state = await getGameState(page);
-      if (state.quizItemsCount < 2) {
-        errors.push(`Test 8 FAIL: Expected 2 items, got ${state.quizItemsCount}`);
-        console.log(`FAIL: ${state.quizItemsCount} items`);
-      } else {
-        // Position P1 on item A and P2 on item B simultaneously
-        const items = await getItemDetails(page);
+      assertCondition(state.quizItemsCount === 2, 'Test 8',
+        `Expected 2 items for race test, got ${state.quizItemsCount}`, errors);
+
+      // Use deterministic handler calls instead of physics teleport
+      const raceResult = await page.evaluate(() => {
+        const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
+        const items = [...gs.quizItems.values()];
+        if (items.length < 2) return { error: 'Not enough items' };
+
         const itemA = items[0];
         const itemB = items[1];
-        await page.evaluate(({ a, b }) => {
-          const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
-          gs.player1.setPosition(a.x, a.y);
-          gs.player1.body.reset(a.x, a.y);
-          gs.player2.setPosition(b.x, b.y);
-          gs.player2.body.reset(b.x, b.y);
-        }, { a: itemA, b: itemB });
-        await page.waitForTimeout(500);
-        state = await getGameState(page);
+        const p1 = gs.player1;
+        const p2 = gs.player2;
 
-        // Only one quiz session should be active
-        if (!state.hasActiveSession) {
-          errors.push('Test 8 FAIL: No quiz session started');
-          console.log('FAIL: No active session');
+        // Call handler for P1 on item A, then immediately for P2 on item B
+        gs.handleQuizItemOverlap(p1, itemA);
+        const midSession = gs.activeQuizSession ? {
+          itemId: gs.activeQuizSession.itemId, playerId: gs.activeQuizSession.playerId
+        } : null;
+
+        gs.handleQuizItemOverlap(p2, itemB);
+        const postSession = gs.activeQuizSession ? {
+          itemId: gs.activeQuizSession.itemId, playerId: gs.activeQuizSession.playerId
+        } : null;
+
+        return {
+          midSession, postSession,
+          itemA: { itemId: itemA.itemId, claimed: itemA.claimed, collected: itemA.collected, active: itemA.active },
+          itemB: { itemId: itemB.itemId, claimed: itemB.claimed, collected: itemB.collected, active: itemB.active }
+        };
+      });
+
+      if (raceResult.error) {
+        assertCondition(false, 'Test 8', raceResult.error, errors);
+      } else {
+        const claimedCount = (raceResult.itemA.claimed ? 1 : 0) + (raceResult.itemB.claimed ? 1 : 0);
+        assertCondition(claimedCount === 1, 'Test 8',
+          `Exactly one item should be claimed, got ${claimedCount}`, errors);
+        assertCondition(!!raceResult.midSession, 'Test 8',
+          'Active quiz session should exist after first claim', errors);
+
+        const unclaimedItem = raceResult.itemA.claimed ? raceResult.itemB : raceResult.itemA;
+        assertCondition(!unclaimedItem.claimed, 'Test 8',
+          `Unclaimed item should have claimed=false (item ${unclaimedItem.itemId})`, errors);
+        assertCondition(unclaimedItem.active, 'Test 8',
+          `Unclaimed item should be active (item ${unclaimedItem.itemId})`, errors);
+      }
+
+      // Wait for QuizScene to become active
+      const quizActive = await page.waitForFunction(() => {
+        return window.__BUBBLE_BATTLE_GAME__.scene.isActive('QuizScene');
+      }, { timeout: 2000 }).catch(() => false);
+      assertCondition(!!quizActive, 'Test 8', 'QuizScene should be active after claim', errors);
+
+      // Complete the first quiz
+      const qs = await getQuizState(page);
+      if (qs) {
+        if (qs.playerId === 1) {
+          await page.keyboard.press(String(qs.correctIndex + 1));
         } else {
-          console.log('PASS: Only one active quiz session');
-          const qs = await getQuizState(page);
-          const claimingPlayer = qs?.playerId;
-          if (claimingPlayer === 1) {
-            await answerQuizP1(page, qs.correctIndex);
-          } else {
-            await answerQuizP2(page, qs.correctIndex);
-          }
-
-          // After quiz ends, check the unclaimed item state
-          const remainingItems = await getItemDetails(page);
-          const unclaimed = remainingItems.filter(it => !it.claimed && it.active);
-          if (unclaimed.length >= 1) {
-            console.log(`PASS: ${unclaimed.length} unclaimed item(s) still active after race`);
-            // Verify the unclaimed item can still be claimed
-            const toClaim = unclaimed[0];
-            await page.evaluate((p) => {
-              const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
-              gs.player1.setPosition(p.x, p.y);
-              gs.player1.body.reset(p.x, p.y);
-            }, toClaim);
-            await page.waitForTimeout(500);
-            state = await getGameState(page);
-            if (state.hasActiveSession && state.quizSceneActive) {
-              console.log('PASS: Unclaimed item still claimable after race');
-            } else {
-              errors.push('Test 8 FAIL: Unclaimed item not claimable after race');
-              console.log('FAIL: Unclaimed item cannot be claimed');
-            }
-          } else {
-            console.log(`PASS: All items resolved (remaining: ${remainingItems.length})`);
-          }
+          for (let i = 0; i < qs.correctIndex; i++) { await page.keyboard.press('ArrowDown'); await page.waitForTimeout(50); }
+          await page.keyboard.press('Enter');
         }
+        // Wait for quiz to close
+        await page.waitForFunction(() => {
+          return !window.__BUBBLE_BATTLE_GAME__.scene.isActive('QuizScene');
+        }, { timeout: 5000 }).catch(() => {});
+      }
+
+      // Wait for quiz to close and GameScene to resume
+      await page.waitForFunction(() => {
+        const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
+        return !window.__BUBBLE_BATTLE_GAME__.scene.isActive('QuizScene')
+          && gs && !gs.activeQuizSession
+          && gs.roundManager?.state === 'playing';
+      }, { timeout: 5000 }).catch(() => {});
+
+      // Verify unclaimed item still exists with correct state
+      const remainingCheck = await page.evaluate(() => {
+        const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
+        const items = [...(gs.quizItems?.values() || [])].map(it => ({
+          itemId: it.itemId, claimed: it.claimed, collected: it.collected, active: it.active,
+          bodyEnabled: it.body?.enable ?? null, hasLifetime: !!it.lifetimeTimer
+        }));
+        const unclaimed = items.filter(it => !it.claimed && it.active);
+        return { items, unclaimedCount: unclaimed.length, drain: gs._postQuizDrain };
+      });
+
+      assertCondition(remainingCheck.unclaimedCount === 1, 'Test 8',
+        `Expected 1 unclaimed item after quiz, got ${remainingCheck.unclaimedCount}`, errors);
+      if (remainingCheck.unclaimedCount >= 1) {
+        const r = remainingCheck.items.find(it => !it.claimed && it.active);
+        assertCondition(r.bodyEnabled === true, 'Test 8', 'Unclaimed item body should be enabled', errors);
+        assertCondition(r.hasLifetime === true, 'Test 8', 'Unclaimed item should have lifetime timer', errors);
+
+        // Attempt to claim the remaining item
+        await page.evaluate(({ itemId }) => {
+          const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
+          const item = [...gs.quizItems.values()].find(it => it.itemId === itemId);
+          if (item) gs.handleQuizItemOverlap(gs.player1, item);
+        }, r);
+
+        const secondQuiz = await page.waitForFunction(() => {
+          return window.__BUBBLE_BATTLE_GAME__.scene.isActive('QuizScene');
+        }, { timeout: 2000 }).catch(() => false);
+        assertCondition(!!secondQuiz, 'Test 8', 'Second quiz should open for remaining item', errors);
       }
     }
 
-    // ===== TEST 9: Opponent steal ====
+    // ===== TEST 9: Opponent steal =====
     console.log('\n=== Test 9: Opponent steal ===');
     await restartGame(page);
     state = await getGameState(page);
@@ -653,18 +659,16 @@ async function restartGame(page) {
       return null;
     });
     if (!stealKey) {
-      errors.push('Test 9 FAIL: No hidden crate');
-      console.log('FAIL: No hidden crate for steal test');
+      assertCondition(false, 'Test 9', 'No hidden crate for steal test', errors);
     } else {
       const [sr, sc] = stealKey.split(':').map(Number);
-      // P1 destroys the crate but P2 claims the item
+      // P1 destroys the crate, but P2 claims the item
       await page.evaluate((p) => {
         const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
         gs.player1.setPosition(p.r * 48 + 24, p.c * 48 + 24);
         gs.events.emit('crate_destroyed', { row: p.r, col: p.c, x: 0, y: 0 });
       }, { r: sr, c: sc });
       await page.waitForTimeout(300);
-      // Find the spawned item and move P2 to it
       const stealItem = await page.evaluate(() => {
         const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
         if (gs.quizItems && gs.quizItems.size > 0) {
@@ -673,42 +677,35 @@ async function restartGame(page) {
         }
         return null;
       });
-      if (stealItem) {
+      if (!stealItem) {
+        assertCondition(false, 'Test 9', 'No item spawned for steal test', errors);
+      } else {
         await page.evaluate((p) => {
           const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
           gs.player2.setPosition(p.x, p.y);
         }, stealItem);
         await page.waitForTimeout(500);
         const qs = await getQuizState(page);
-        if (qs && qs.playerId === 2) {
-          console.log('PASS: P2 stole the item (quiz for P2)');
-          await answerQuizP2(page, qs.correctIndex);
-          state = await getGameState(page);
-          if (state.p2.jsCorrectCount >= 1) {
-            console.log('PASS: Reward goes to P2 (the stealer)');
-          } else {
-            errors.push('Test 9 FAIL: P2 score did not increase');
-          }
-        } else {
-          errors.push(`Test 9 FAIL: Quiz opened for P${qs?.playerId}, expected P2`);
-        }
-      } else {
-        errors.push('Test 9 FAIL: No item spawned');
+        assertCondition(qs && qs.playerId === 2, 'Test 9',
+          `Quiz should be for P2 (stealer), got playerId=${qs?.playerId}`, errors);
+
+        await answerQuizP2(page, qs.correctIndex);
+        state = await getGameState(page);
+        assertCondition(state.p2.jsCorrectCount >= 1, 'Test 9',
+          `P2 score should increase after steal, got ${state.p2.jsCorrectCount}`, errors);
       }
     }
 
-    // ===== TEST 10: Wrong answer ====
+    // ===== TEST 10: Wrong answer =====
     console.log('\n=== Test 10: Wrong answer ===');
     await restartGame(page);
-    // Spawn and claim an item
     const wrongKey = await page.evaluate(() => {
       const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
       if (gs.hiddenQuizCrates.size > 0) return [...gs.hiddenQuizCrates][0];
       return null;
     });
     if (!wrongKey) {
-      errors.push('Test 10 FAIL: No hidden crate');
-      console.log('FAIL: No crate for wrong answer test');
+      assertCondition(false, 'Test 10', 'No hidden crate for wrong answer test', errors);
     } else {
       const [wr, wc] = wrongKey.split(':').map(Number);
       await page.evaluate((p) => {
@@ -725,8 +722,7 @@ async function restartGame(page) {
         return null;
       });
       if (!wrongItem) {
-        errors.push('Test 10 FAIL: No item');
-        console.log('FAIL: No item spawned');
+        assertCondition(false, 'Test 10', 'No item spawned', errors);
       } else {
         await page.evaluate((p) => {
           const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
@@ -734,30 +730,22 @@ async function restartGame(page) {
         }, wrongItem);
         await page.waitForTimeout(300);
         const qs = await getQuizState(page);
-        if (qs) {
+        if (!qs) {
+          assertCondition(false, 'Test 10', 'Quiz did not open', errors);
+        } else {
           const preScore = (await getGameState(page)).p1.jsCorrectCount;
-          // Pick a wrong answer (not correctIndex)
           const wrongIdx = (qs.correctIndex + 1) % 4;
           await page.keyboard.press(String(wrongIdx + 1));
           await page.waitForTimeout(2500);
           state = await getGameState(page);
-          if (state.p1.jsCorrectCount === preScore) {
-            console.log('PASS: Score unchanged after wrong answer');
-          } else {
-            errors.push('Test 10 FAIL: Score changed after wrong answer');
-          }
-          if (!state.quizSceneActive) {
-            console.log('PASS: QuizScene closed, game resumed');
-          } else {
-            errors.push('Test 10 FAIL: QuizScene still active');
-          }
-        } else {
-          errors.push('Test 10 FAIL: Quiz did not open');
+          assertCondition(state.p1.jsCorrectCount === preScore, 'Test 10',
+            `Score should be unchanged after wrong answer (was ${preScore}, now ${state.p1.jsCorrectCount})`, errors);
+          assertCondition(!state.quizSceneActive, 'Test 10', 'QuizScene should be closed after wrong answer', errors);
         }
       }
     }
 
-    // ===== TEST 11: Timeout ====
+    // ===== TEST 11: Timeout =====
     console.log('\n=== Test 11: Timeout ===');
     await restartGame(page);
     const tKey = await page.evaluate(() => {
@@ -766,8 +754,7 @@ async function restartGame(page) {
       return null;
     });
     if (!tKey) {
-      errors.push('Test 11 FAIL: No hidden crate');
-      console.log('FAIL: No crate for timeout test');
+      assertCondition(false, 'Test 11', 'No hidden crate for timeout test', errors);
     } else {
       const [tr, tc] = tKey.split(':').map(Number);
       await page.evaluate((p) => {
@@ -784,8 +771,7 @@ async function restartGame(page) {
         return null;
       });
       if (!tItem) {
-        errors.push('Test 11 FAIL: No item');
-        console.log('FAIL: No item');
+        assertCondition(false, 'Test 11', 'No item spawned', errors);
       } else {
         await page.evaluate((p) => {
           const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
@@ -793,23 +779,15 @@ async function restartGame(page) {
         }, tItem);
         await page.waitForTimeout(300);
         const preScore = (await getGameState(page)).p1.jsCorrectCount;
-        // Wait for timeout (10s + buffer)
         await page.waitForTimeout(12000);
         state = await getGameState(page);
-        if (state.p1.jsCorrectCount === preScore) {
-          console.log('PASS: Score unchanged after timeout');
-        } else {
-          errors.push('Test 11 FAIL: Score changed after timeout');
-        }
-        if (!state.quizSceneActive) {
-          console.log('PASS: QuizScene closed after timeout');
-        } else {
-          errors.push('Test 11 FAIL: QuizScene still active after timeout');
-        }
+        assertCondition(state.p1.jsCorrectCount === preScore, 'Test 11',
+          `Score should be unchanged after timeout (was ${preScore}, now ${state.p1.jsCorrectCount})`, errors);
+        assertCondition(!state.quizSceneActive, 'Test 11', 'QuizScene should be closed after timeout', errors);
       }
     }
 
-    // ===== TEST 12: Item lifetime ====
+    // ===== TEST 12: Item lifetime =====
     console.log('\n=== Test 12: Item lifetime ===');
     await restartGame(page);
     const ltKey = await page.evaluate(() => {
@@ -818,8 +796,7 @@ async function restartGame(page) {
       return null;
     });
     if (!ltKey) {
-      errors.push('Test 12 FAIL: No hidden crate');
-      console.log('FAIL: No crate');
+      assertCondition(false, 'Test 12', 'No hidden crate', errors);
     } else {
       const [lr, lc] = ltKey.split(':').map(Number);
       await page.evaluate((p) => {
@@ -828,42 +805,225 @@ async function restartGame(page) {
       }, { r: lr, c: lc });
       await page.waitForTimeout(300);
       state = await getGameState(page);
-      const preCount = state.quizItemsCount;
-      if (preCount !== 1) {
-        errors.push(`Test 12 FAIL: Expected 1 item, got ${preCount}`);
-      } else {
-        // Wait for lifetime (20s + extra)
-        await page.waitForTimeout(22000);
-        state = await getGameState(page);
-        if (state.quizItemsCount === 0) {
-          console.log('PASS: Item despawned after lifetime');
-        } else {
-          errors.push(`Test 12 FAIL: Item still exists after lifetime (${state.quizItemsCount})`);
-        }
-      }
+      assertCondition(state.quizItemsCount === 1, 'Test 12',
+        `Expected 1 item for lifetime test, got ${state.quizItemsCount}`, errors);
+      await page.waitForTimeout(22000);
+      state = await getGameState(page);
+      assertCondition(state.quizItemsCount === 0, 'Test 12',
+        `Item should have despawned after lifetime, got ${state.quizItemsCount} items`, errors);
     }
 
-    // ===== TEST 13: Lifetime pause during quiz ====
-    console.log('\n=== Test 13: Lifetime pause during quiz ===');
+    // ===== TEST 13: Lifetime pause during quiz STRICT =====
+    console.log('\n=== Test 13: Lifetime pause during quiz STRICT ===');
     await restartGame(page);
     const pauseKeys = await page.evaluate(() => {
       const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
       return [...gs.hiddenQuizCrates];
     });
     if (pauseKeys.length < 2) {
-      errors.push('Test 13 FAIL: Not enough hidden crates');
-      console.log('FAIL: Less than 2 hidden crates');
+      assertCondition(false, 'Test 13', 'Not enough hidden crates (need 2)', errors);
     } else {
-      // Spawn item A, then item B shortly after
       const [r1, c1] = pauseKeys[0].split(':').map(Number);
       const [r2, c2] = pauseKeys[1].split(':').map(Number);
+
+      // Spawn item A
       await page.evaluate((p) => {
         const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
         gs.events.emit('crate_destroyed', { row: p.r, col: p.c, x: 0, y: 0 });
       }, { r: r1, c: c1 });
       await page.waitForTimeout(300);
-      // Claim item A to open quiz
-      const pauseItemA = await page.evaluate(() => {
+
+      // Spawn item B
+      await page.evaluate((p) => {
+        const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
+        gs.events.emit('crate_destroyed', { row: p.r, col: p.c, x: 0, y: 0 });
+      }, { r: r2, c: c2 });
+      await page.waitForTimeout(200);
+
+      state = await getGameState(page);
+      assertCondition(state.quizItemsCount === 2, 'Test 13',
+        `Expected 2 items, got ${state.quizItemsCount}`, errors);
+
+      // Get items and find item B's remaining lifetime
+      const items13 = await getItemDetails(page);
+      const itemA13 = items13[0];
+      const itemB13 = items13[1];
+
+      const remainingBefore = await page.evaluate((itemId) => {
+        const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
+        for (const item of gs.quizItems.values()) {
+          if (item.itemId === itemId && item.lifetimeTimer) {
+            try {
+              if (typeof item.lifetimeTimer.getRemaining === 'function') {
+                return item.lifetimeTimer.getRemaining();
+              }
+              return item.lifetimeTimer.delay - item.lifetimeTimer.elapsed;
+            } catch (e) { return null; }
+          }
+        }
+        return null;
+      }, itemB13.itemId);
+
+      // Position P1 on item A to open quiz (pauses GameScene)
+      await page.evaluate((p) => {
+        const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
+        gs.player1.setPosition(p.x, p.y);
+      }, itemA13);
+      await page.waitForTimeout(300);
+      const qs13 = await getQuizState(page);
+      assertCondition(!!qs13, 'Test 13', 'Quiz did not open for lifetime pause test', errors);
+
+      // Wait 3s wall-clock while GameScene is paused
+      await page.waitForTimeout(3000);
+
+      const remainingDuring = await page.evaluate((itemId) => {
+        const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
+        for (const item of gs.quizItems.values()) {
+          if (item.itemId === itemId && item.lifetimeTimer) {
+            try {
+              if (typeof item.lifetimeTimer.getRemaining === 'function') {
+                return item.lifetimeTimer.getRemaining();
+              }
+              return item.lifetimeTimer.delay - item.lifetimeTimer.elapsed;
+            } catch (e) { return null; }
+          }
+        }
+        return null;
+      }, itemB13.itemId);
+
+      if (remainingBefore !== null && remainingDuring !== null) {
+        assertCondition(Math.abs(remainingBefore - remainingDuring) < 500, 'Test 13',
+          `Lifetime timer should be paused during quiz (before=${remainingBefore}, during=${remainingDuring}, diff=${Math.abs(remainingBefore - remainingDuring)})`, errors);
+      } else {
+        console.log(`  INFO: Could not read lifetime timer (before=${remainingBefore}, during=${remainingDuring})`);
+      }
+
+      // Answer quiz immediately (don't wait for timeout)
+      if (qs13.playerId === 1) {
+        await answerQuizP1(page, qs13.correctIndex);
+      } else {
+        await answerQuizP2(page, qs13.correctIndex);
+      }
+      await page.waitForTimeout(1000);
+
+      state = await getGameState(page);
+      assertCondition(state.quizItemsCount >= 1, 'Test 13',
+        `Item B should still exist after quiz closed (${state.quizItemsCount} items)`, errors);
+    }
+
+    // ===== TEST 14: Power-up caps STRICT =====
+    console.log('\n=== Test 14: Power-up caps STRICT ===');
+    await restartGame(page);
+    state = await getGameState(page);
+
+    await page.evaluate(() => {
+      const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
+      const p1 = gs.player1;
+      for (let i = 0; i < 6; i++) {
+        p1.increaseMaxBalloons();
+        p1.increaseExplosionRange();
+      }
+    });
+
+    state = await getGameState(page);
+    assertCondition(state.p1.maxBalloons === 5, 'Test 14',
+      `maxBalloons should be exactly 5 after 6 increases, got ${state.p1.maxBalloons}`, errors);
+    assertCondition(state.p1.waterRange === 5, 'Test 14',
+      `waterRange should be exactly 5 after 6 increases, got ${state.p1.waterRange}`, errors);
+
+    // Call increase 3 more times — should stay at 5
+    await page.evaluate(() => {
+      const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
+      const p1 = gs.player1;
+      for (let i = 0; i < 3; i++) {
+        p1.increaseMaxBalloons();
+        p1.increaseExplosionRange();
+      }
+    });
+
+    state = await getGameState(page);
+    assertCondition(state.p1.maxBalloons === 5, 'Test 14',
+      `maxBalloons should STILL be exactly 5 after 3 more increases, got ${state.p1.maxBalloons}`, errors);
+    assertCondition(state.p1.waterRange === 5, 'Test 14',
+      `waterRange should STILL be exactly 5 after 3 more increases, got ${state.p1.waterRange}`, errors);
+
+    // Check HUD text shows "5/5" from GameScene HUD objects
+    const hudText = await page.evaluate(() => {
+      const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
+      if (!gs) return null;
+      const texts = [];
+      if (gs.p1BalloonHud && gs.p1BalloonHud.text) texts.push(gs.p1BalloonHud.text);
+      if (gs.p1RangeHud && gs.p1RangeHud.text) texts.push(gs.p1RangeHud.text);
+      if (gs.p2BalloonHud && gs.p2BalloonHud.text) texts.push(gs.p2BalloonHud.text);
+      if (gs.p2RangeHud && gs.p2RangeHud.text) texts.push(gs.p2RangeHud.text);
+      return texts.join(' ');
+    });
+    assertCondition(hudText && hudText.includes('/5'), 'Test 14',
+      `HUD should show "/5" cap indicator, got: ${hudText}`, errors);
+
+    // ===== TEST 15: Speed duration STRICT =====
+    console.log('\n=== Test 15: Speed duration STRICT ===');
+    await restartGame(page);
+    state = await getGameState(page);
+
+    await page.evaluate(() => {
+      const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
+      gs.player1.applySpeedBoost();
+    });
+    state = await getGameState(page);
+    assertCondition(state.p1.speedBoostActive, 'Test 15', 'Speed boost should be active', errors);
+
+    const remaining1 = await page.evaluate(() => {
+      const p1 = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene').player1;
+      return p1.getSpeedBoostRemaining ? p1.getSpeedBoostRemaining() : null;
+    });
+    assertCondition(remaining1 !== null && remaining1 >= 14 && remaining1 <= 15, 'Test 15',
+      `Initial speed boost remaining should be 14-15s, got ${remaining1}`, errors);
+
+    // Wait 500ms and re-apply — should refresh
+    await page.waitForTimeout(500);
+    await page.evaluate(() => {
+      const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
+      gs.player1.applySpeedBoost();
+    });
+    const remaining2 = await page.evaluate(() => {
+      const p1 = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene').player1;
+      return p1.getSpeedBoostRemaining ? p1.getSpeedBoostRemaining() : null;
+    });
+    assertCondition(remaining2 !== null && remaining2 >= 14 && remaining2 <= 15, 'Test 15',
+      `Speed boost should refresh to 14-15s, got ${remaining2}`, errors);
+
+    // Check speed is not stacked
+    const actualSpeed = await page.evaluate(() => {
+      return window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene').player1.speed;
+    });
+    assertCondition(Math.abs(actualSpeed - 180) <= 1, 'Test 15',
+      `Speed should be ~180 (no stack), got ${actualSpeed}`, errors);
+
+    // --- Speed pause test ---
+    // Apply fresh speed boost
+    await page.evaluate(() => {
+      const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
+      gs.player1.applySpeedBoost();
+    });
+    const remainingBefore = await page.evaluate(() => {
+      const p1 = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene').player1;
+      return p1.getSpeedBoostRemaining ? p1.getSpeedBoostRemaining() : null;
+    });
+
+    // Spawn item and open quiz
+    const spdKeys = await page.evaluate(() => {
+      const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
+      return [...gs.hiddenQuizCrates].slice(0, 1);
+    });
+    if (spdKeys.length > 0) {
+      const [sr, sc] = spdKeys[0].split(':').map(Number);
+      await page.evaluate((p) => {
+        const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
+        gs.events.emit('crate_destroyed', { row: p.r, col: p.c, x: 0, y: 0 });
+      }, { r: sr, c: sc });
+      await page.waitForTimeout(300);
+      const spdItem = await page.evaluate(() => {
         const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
         if (gs.quizItems && gs.quizItems.size > 0) {
           const first = [...gs.quizItems.values()][0];
@@ -871,124 +1031,53 @@ async function restartGame(page) {
         }
         return null;
       });
-      if (!pauseItemA) {
-        errors.push('Test 13 FAIL: Item A did not spawn');
-      } else {
-        // Spawn item B
-        await page.evaluate((p) => {
-          const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
-          gs.events.emit('crate_destroyed', { row: p.r, col: p.c, x: 0, y: 0 });
-        }, { r: r2, c: c2 });
-        await page.waitForTimeout(200);
-        state = await getGameState(page);
-        const preQuizItems = state.quizItemsCount;
-        // Claim item A to open quiz
+      if (spdItem) {
         await page.evaluate((p) => {
           const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
           gs.player1.setPosition(p.x, p.y);
-        }, pauseItemA);
+        }, spdItem);
         await page.waitForTimeout(300);
-        const qs = await getQuizState(page);
-        if (!qs) {
-          errors.push('Test 13 FAIL: Quiz did not open');
-        } else {
-          // Wait ~15s in quiz (pause game time)
-          await page.waitForTimeout(15000);
-          await answerQuizP1(page, qs.correctIndex);
-          state = await getGameState(page);
-          // Item B should still exist because lifetime was paused during quiz
-          if (state.quizItemsCount >= 1) {
-            console.log(`PASS: Item survived during paused game (${state.quizItemsCount} items)`);
+        // Quiz open — GameScene paused — wait 3s
+        await page.waitForTimeout(3000);
+        const remainingDuring = await page.evaluate(() => {
+          const p1 = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene').player1;
+          return p1.getSpeedBoostRemaining ? p1.getSpeedBoostRemaining() : null;
+        });
+        if (remainingBefore !== null && remainingDuring !== null) {
+          assertCondition(Math.abs(remainingBefore - remainingDuring) <= 1, 'Test 15',
+            `Speed boost should pause during quiz (before=${remainingBefore}, during=${remainingDuring})`, errors);
+        }
+        // Close quiz
+        const qs15 = await getQuizState(page);
+        if (qs15) {
+          if (qs15.playerId === 1) {
+            await answerQuizP1(page, qs15.correctIndex);
           } else {
-            console.log(`INFO: Item may have naturally despawned (${preQuizItems} before quiz)`);
+            await answerQuizP2(page, qs15.correctIndex);
           }
+        }
+        await page.waitForTimeout(1000);
+        const remainingAfter = await page.evaluate(() => {
+          const p1 = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene').player1;
+          return p1.getSpeedBoostRemaining ? p1.getSpeedBoostRemaining() : null;
+        });
+        if (remainingDuring !== null && remainingAfter !== null) {
+          assertCondition(remainingAfter < remainingDuring - 0.5, 'Test 15',
+            `Speed boost should resume after quiz close (during=${remainingDuring}, after=${remainingAfter})`, errors);
         }
       }
     }
 
-    // ===== TEST 14: Power-up caps ====
-    console.log('\n=== Test 14: Power-up caps ===');
-    await restartGame(page);
-    state = await getGameState(page);
-    const capP1 = await page.evaluate(() => {
-      const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
-      const p1 = gs.player1;
-      // Increase max bombs and range to test caps
-      for (let i = 0; i < 6; i++) {
-        p1.increaseMaxBalloons();
-        p1.increaseExplosionRange();
-      }
-      return { maxBalloons: p1.maxBalloons, waterRange: p1.waterRange };
-    });
-    if (capP1.maxBalloons > 5) {
-      errors.push(`Test 14 FAIL: maxBalloons = ${capP1.maxBalloons}, exceeds cap 5`);
-      console.log(`FAIL: maxBalloons=${capP1.maxBalloons}`);
-    } else if (capP1.waterRange > 5) {
-      errors.push(`Test 14 FAIL: waterRange = ${capP1.waterRange}, exceeds cap 5`);
-      console.log(`FAIL: waterRange=${capP1.waterRange}`);
-    } else {
-      console.log(`PASS: maxBalloons=${capP1.maxBalloons}, waterRange=${capP1.waterRange} (capped at 5)`);
-    }
-
-    // ===== TEST 15: Speed duration ====
-    console.log('\n=== Test 15: Speed duration ===');
-    await restartGame(page);
-    state = await getGameState(page);
-    await page.evaluate(() => {
-      const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
-      gs.player1.applySpeedBoost();
-    });
-    state = await getGameState(page);
-    if (!state.p1.speedBoostActive) {
-      errors.push('Test 15 FAIL: Speed boost not active');
-      console.log('FAIL: Speed boost not applied');
-    } else {
-      const remaining = await page.evaluate(() => {
-        return window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene').player1.getSpeedBoostRemaining();
-      });
-      if (remaining >= 14 && remaining <= 15) {
-        console.log(`PASS: Speed boost active with ${remaining}s remaining`);
-      } else {
-        console.log(`Speed boost has ${remaining}s remaining`);
-      }
-      // Apply again while active - should refresh to 15s
-      await page.waitForTimeout(500);
-      await page.evaluate(() => {
-        window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene').player1.applySpeedBoost();
-      });
-      const remaining2 = await page.evaluate(() => {
-        return window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene').player1.getSpeedBoostRemaining();
-      });
-      if (remaining2 >= 14 && remaining2 <= 15) {
-        console.log(`PASS: Speed boost refreshed to ${remaining2}s`);
-      } else {
-        console.log(`Speed boost at ${remaining2}s after refresh`);
-      }
-      // Check speed is not multiplied again
-      await page.evaluate(() => {
-        return window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene').player1.speed;
-      });
-      const expectedSpeed = 150 * 1.2; // 180
-      const actualSpeed = await page.evaluate(() => {
-        return window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene').player1.speed;
-      });
-      if (Math.abs(actualSpeed - expectedSpeed) <= 1) {
-        console.log(`PASS: Speed = ${actualSpeed} (not 1.2*1.2)`);
-      } else {
-        console.log(`Speed = ${actualSpeed}, expected ~${expectedSpeed}`);
-      }
-    }
-
-    // ===== TEST 16: Range snapshot ====
-    console.log('\n=== Test 16: Range snapshot ===');
+    // ===== TEST 16: Range snapshot EXACT =====
+    console.log('\n=== Test 16: Range snapshot EXACT ===');
     await restartGame(page);
     let rangeA = null;
     await page.evaluate(() => {
       const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
       const p1 = gs.player1;
+      p1.waterRange = 1;
       p1.setPosition(48 * 3 + 24, 48 * 3 + 24);
       p1.body.reset(48 * 3 + 24, 48 * 3 + 24);
-      p1.waterRange = 1;
       gs.events.emit('request_place_balloon', p1);
     });
     await page.waitForTimeout(300);
@@ -997,7 +1086,8 @@ async function restartGame(page) {
       const balloons = gs.balloons.getChildren();
       return balloons.length > 0 ? balloons[0].range : null;
     });
-    // Make the first balloon explode to free up balloon slot
+
+    // Make balloon A explode to free the slot
     await page.evaluate(() => {
       const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
       const balloons = gs.balloons.getChildren();
@@ -1008,10 +1098,10 @@ async function restartGame(page) {
       }
     });
     await page.waitForTimeout(500);
-    // Upgrade range and place second balloon
+
+    // Call increaseExplosionRange() ONE time (not two)
     await page.evaluate(() => {
       const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
-      gs.player1.increaseExplosionRange();
       gs.player1.increaseExplosionRange();
       gs.player1.setPosition(48 * 5 + 24, 48 * 5 + 24);
       gs.player1.body.reset(48 * 5 + 24, 48 * 5 + 24);
@@ -1023,137 +1113,287 @@ async function restartGame(page) {
       const balloons = gs.balloons.getChildren();
       return balloons.length > 0 ? balloons[balloons.length - 1].range : null;
     });
-    if (rangeA !== null && rangeB !== null && rangeA < rangeB) {
-      console.log(`PASS: Balloon A range=${rangeA}, Balloon B range=${rangeB}`);
-    } else {
-      errors.push(`Test 16 FAIL: A=${rangeA}, B=${rangeB}`);
-      console.log(`FAIL: A=${rangeA}, B=${rangeB}`);
-    }
 
-    // ===== TEST 17: UI bounds ====
-    console.log('\n=== Test 17: UI bounds ===');
+    assertCondition(rangeA === 1, 'Test 16',
+      `Balloon A range should be 1 (snapshotted), got ${rangeA}`, errors);
+    assertCondition(rangeB === 2, 'Test 16',
+      `Balloon B range should be 2 (after one increase from 1), got ${rangeB}`, errors);
+
+    // ===== TEST 17: UI bounds STRICT (iterate all 10 questions) =====
+    console.log('\n=== Test 17: UI bounds STRICT ===');
     await restartGame(page);
-    const uiKey = await page.evaluate(() => {
-      const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
-      if (gs.hiddenQuizCrates.size > 0) return [...gs.hiddenQuizCrates][0];
+
+    // Try to get the question bank
+    const questions = await page.evaluate(() => {
+      const game = window.__BUBBLE_BATTLE_GAME__;
+      const gs = game.scene.getScene('GameScene');
+      if (gs.questionBank && Array.isArray(gs.questionBank)) return gs.questionBank;
+      if (gs.quizManager && gs.quizManager.questionBank && Array.isArray(gs.quizManager.questionBank)) return gs.quizManager.questionBank;
+      const reg = game.registry;
+      try {
+        const all = reg.getAll();
+        for (const [, v] of Object.entries(all)) {
+          if (Array.isArray(v) && v.length >= 10 && v[0]?.question) return v;
+        }
+      } catch (e) {}
+      const qs = game.scene.getScene('QuizScene');
+      if (qs && qs.questionBank && Array.isArray(qs.questionBank)) return qs.questionBank;
       return null;
     });
-    if (!uiKey) {
-      errors.push('Test 17 FAIL: No hidden crate');
-      console.log('FAIL: No crate');
-    } else {
-      const [ur, uc] = uiKey.split(':').map(Number);
-      await page.evaluate((p) => {
+
+    if (!questions || questions.length === 0) {
+      // Fallback: do basic bounds check via in-game quiz
+      console.log('  INFO: Could not get question bank, using in-game quiz for bounds check');
+      const fallbackKey = await page.evaluate(() => {
         const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
-        gs.events.emit('crate_destroyed', { row: p.r, col: p.c, x: 0, y: 0 });
-      }, { r: ur, c: uc });
-      await page.waitForTimeout(300);
-      const uiItem = await page.evaluate(() => {
-        const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
-        if (gs.quizItems && gs.quizItems.size > 0) {
-          const first = [...gs.quizItems.values()][0];
-          return { x: first.x, y: first.y };
-        }
+        if (gs.hiddenQuizCrates.size > 0) return [...gs.hiddenQuizCrates][0];
         return null;
       });
-      if (!uiItem) {
-        errors.push('Test 17 FAIL: No item');
-        console.log('FAIL: No item');
-      } else {
+      if (fallbackKey) {
+        const [fr, fc] = fallbackKey.split(':').map(Number);
         await page.evaluate((p) => {
           const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
-          gs.player1.setPosition(p.x, p.y);
-        }, uiItem);
+          gs.events.emit('crate_destroyed', { row: p.r, col: p.c, x: 0, y: 0 });
+        }, { r: fr, c: fc });
         await page.waitForTimeout(300);
+        const fItem = await page.evaluate(() => {
+          const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
+          if (gs.quizItems && gs.quizItems.size > 0) {
+            const first = [...gs.quizItems.values()][0];
+            return { x: first.x, y: first.y };
+          }
+          return null;
+        });
+        if (fItem) {
+          await page.evaluate((p) => {
+            const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
+            gs.player1.setPosition(p.x, p.y);
+          }, fItem);
+          await page.waitForTimeout(500);
+          const boundsOk = await page.evaluate(() => {
+            const game = window.__BUBBLE_BATTLE_GAME__;
+            const qs = game.scene.getScene('QuizScene');
+            if (!qs || !qs.scene.isActive()) return { allInCanvas: false, error: 'No quiz scene', childCount: 0, violations: [] };
+            const children = qs.children.list;
+            let allInCanvas = true;
+            const violations = [];
+            for (const child of children) {
+              if (!child || !child.getBounds) continue;
+              const b = child.getBounds();
+              if (b.width < 1 && b.height < 1) continue;
+              const inCanvas = b.x >= -5 && b.y >= -5 && b.right <= 805 && b.bottom <= 605;
+              if (!inCanvas) {
+                allInCanvas = false;
+                violations.push({ x: b.x, y: b.y, right: b.right, bottom: b.bottom, w: b.width, h: b.height, type: child.type });
+              }
+            }
+            return { allInCanvas, violations, childCount: children.length };
+          });
+          assertCondition(boundsOk.allInCanvas, 'Test 17',
+            `${boundsOk.violations?.length || 0} object(s) outside canvas 800x600 (${boundsOk.childCount} children)`, errors);
+          if (!boundsOk.allInCanvas && boundsOk.violations) {
+            for (const v of boundsOk.violations) {
+              console.log(`  VIOLATION: ${v.type} at (${v.x},${v.y})-(${v.right},${v.bottom}) size ${v.w}x${v.h}`);
+            }
+          }
+          // Close quiz
+          const closeQs = await getQuizState(page);
+          if (closeQs) {
+            if (closeQs.playerId === 1) await answerQuizP1(page, closeQs.correctIndex);
+            else await answerQuizP2(page, closeQs.correctIndex);
+          }
+        }
+      }
+    } else {
+      let anyFail = false;
+      const questionCount = Math.min(questions.length, 10);
 
-        // Check that all QuizScene objects are within canvas 800x600
-        const boundsOk = await page.evaluate(() => {
-          const game = window.__BUBBLE_BATTLE_GAME__;
-          const qs = game.scene.getScene('QuizScene');
-          if (!qs || !qs.scene.isActive()) return { error: 'No quiz scene', pass: false };
+      for (const playerId of [1, 2]) {
+        console.log(`  Checking UI bounds for P${playerId} across ${questionCount} questions...`);
 
-          const children = qs.children.list;
-          let allInCanvas = true;
-          const violations = [];
+        for (let qi = 0; qi < questionCount; qi++) {
+          const q = questions[qi];
 
-          for (const child of children) {
-            if (!child || !child.getBounds) continue;
-            const b = child.getBounds();
+          // Stop any active QuizScene first
+          await page.evaluate(() => {
+            const game = window.__BUBBLE_BATTLE_GAME__;
+            if (game.scene.isActive('QuizScene')) {
+              game.scene.stop('QuizScene');
+            }
+          });
+          await page.waitForTimeout(200);
 
-            // Skip tiny/invisible objects
-            if (b.width < 1 && b.height < 1) continue;
+          // Launch QuizScene with this question
+          await page.evaluate(({ question, pid }) => {
+            const game = window.__BUBBLE_BATTLE_GAME__;
+            game.scene.launch('QuizScene', { question, playerId: pid });
+          }, { question: q, pid: playerId });
+          await page.waitForTimeout(500);
 
-            const inCanvas = b.x >= -5 && b.y >= -5 && b.right <= 805 && b.bottom <= 605;
-            if (!inCanvas) {
-              allInCanvas = false;
-              violations.push({ x: b.x, y: b.y, right: b.right, bottom: b.bottom, w: b.width, h: b.height, type: child.type });
+          // Check bounds
+          const uiResult = await page.evaluate(({ questionText }) => {
+            const game = window.__BUBBLE_BATTLE_GAME__;
+            const qs = game.scene.getScene('QuizScene');
+            if (!qs || !qs.scene.isActive()) return { error: 'QuizScene not active', violations: [] };
+
+            const children = qs.children.list;
+            const violations = [];
+
+            // Collect objects by type
+            const texts = [];
+            const rects = [];
+            for (const child of children) {
+              if (!child || !child.getBounds) continue;
+              const b = child.getBounds();
+              if (b.width < 1 && b.height < 1) continue;
+
+              // Canvas bounds check
+              const inCanvas = b.x >= -5 && b.y >= -5 && b.right <= 805 && b.bottom <= 605;
+              if (!inCanvas) {
+                violations.push(`Object ${child.type} at (${b.x},${b.y})-(${b.right},${b.bottom}) outside canvas`);
+              }
+
+              if (child.type === 'Text') {
+                texts.push({ text: child.text || '', bounds: b });
+              } else if (child.type === 'Rectangle' || child.type === 'Graphics') {
+                rects.push({ bounds: b, type: child.type });
+              }
+            }
+
+            // Find panel (largest rectangle)
+            rects.sort((a, b) => (b.bounds.width * b.bounds.height) - (a.bounds.width * a.bounds.height));
+            const panel = rects.length > 0 ? rects[0].bounds : null;
+
+            // Find question text
+            const qText = texts.find(t => t.text === questionText || t.text.includes(questionText?.substring(0, 20)));
+            // Find answer texts (exclude the question text itself and very short texts)
+            const answerTexts = texts.filter(t => t !== qText && t.text.length > 0 && !t.text.match(/^\s*\d+s?\s*$/));
+
+            // Find answer boxes (rectangles that aren't the panel)
+            const answerBoxes = rects.filter(r => r.bounds !== panel && r.bounds.width > 40);
+
+            // Check containment
+            if (panel && qText) {
+              const qb = qText.bounds;
+              if (!(qb.x >= panel.x - 2 && qb.y >= panel.y - 2 && qb.right <= panel.right + 2 && qb.bottom <= panel.bottom + 2)) {
+                violations.push(`Question text (${qb.x},${qb.y}) not within panel (${panel.x},${panel.y})-(${panel.right},${panel.bottom})`);
+              }
+            }
+
+            for (const at of answerTexts) {
+              // Find matching answer box (closest box below the text or containing it)
+              const matchingBox = answerBoxes.find(box =>
+                at.bounds.x >= box.bounds.x - 5 && at.bounds.y >= box.bounds.y - 5 &&
+                at.bounds.right <= box.bounds.right + 5 && at.bounds.bottom <= box.bounds.bottom + 5
+              );
+              if (matchingBox) {
+                // Answer text within its box: check
+              }
+              // Answer box within panel
+              if (matchingBox && panel) {
+                const mb = matchingBox.bounds;
+                if (!(mb.x >= panel.x - 2 && mb.y >= panel.y - 2 && mb.right <= panel.right + 2 && mb.bottom <= panel.bottom + 2)) {
+                  violations.push(`Answer box (${mb.x},${mb.y}) not within panel (${panel.x},${panel.y})-(${panel.right},${panel.bottom})`);
+                }
+              }
+            }
+
+            return { violations, childCount: children.length, hasPanel: !!panel, textCount: texts.length, rectCount: rects.length };
+          }, { questionText: q.question || '' });
+
+          if (uiResult.error) {
+            anyFail = true;
+            console.log(`  VIOLATION Q${qi} P${playerId}: ${uiResult.error}`);
+          }
+
+          if (uiResult.violations && uiResult.violations.length > 0) {
+            anyFail = true;
+            for (const v of uiResult.violations) {
+              console.log(`  VIOLATION Q${qi} P${playerId}: ${v}`);
             }
           }
 
-          return { allInCanvas, violations, childCount: children.length };
-        });
+          // Close quiz by answering correctly
+          await page.evaluate((correctIdx) => {
+            const game = window.__BUBBLE_BATTLE_GAME__;
+            const qs = game.scene.getScene('QuizScene');
+            if (qs && qs.scene.isActive() && !qs.answered) {
+              // Simulate answering directly
+              if (qs.playerId === 1) {
+                qs.handleAnswer(correctIdx);
+              } else {
+                qs.handleAnswer(correctIdx);
+              }
+            }
+          }, q.correctIndex);
+          await page.waitForTimeout(500);
 
-        if (boundsOk.error) {
-          errors.push(`Test 17 FAIL: ${boundsOk.error}`);
-          console.log(`FAIL: ${boundsOk.error}`);
-        } else if (!boundsOk.allInCanvas) {
-          console.log(`FAIL: ${boundsOk.violations.length} object(s) outside canvas`);
-          for (const v of boundsOk.violations) {
-            console.log(`  ${v.type} at (${v.x},${v.y})-(${v.right},${v.bottom}) size ${v.w}x${v.h}`);
-          }
-          errors.push('Test 17 FAIL: Objects outside canvas 800x600');
-        } else {
-          console.log(`PASS: All ${boundsOk.childCount} objects within canvas 800x600`);
+          // Ensure QuizScene is stopped
+          await page.evaluate(() => {
+            const game = window.__BUBBLE_BATTLE_GAME__;
+            if (game.scene.isActive('QuizScene')) {
+              game.scene.stop('QuizScene');
+            }
+            const gs = game.scene.getScene('GameScene');
+            if (gs && gs.scene.isPaused()) {
+              gs.scene.resume();
+            }
+          });
+          await page.waitForTimeout(200);
         }
       }
-    }
-    // Close quiz
-    try {
-      const qsClose = await getQuizState(page);
-      if (qsClose && qsClose.active) {
-        if (qsClose.playerId === 1) await answerQuizP1(page, qsClose.correctIndex);
-        else await answerQuizP2(page, qsClose.correctIndex);
-      }
-    } catch (e) { /* ignore */ }
 
-    // ===== TEST 18: Restart lifecycle (3x) ====
+      assertCondition(!anyFail, 'Test 17',
+        'UI bounds violations found across questions (see logs above)', errors);
+    }
+
+    // ===== TEST 18: Restart lifecycle STRICT (7 listeners) =====
     console.log('\n=== Test 18: Restart lifecycle (3x) ===');
     for (let cycle = 1; cycle <= 3; cycle++) {
       console.log(`  Restart cycle ${cycle}...`);
       await page.evaluate(() => {
         const game = window.__BUBBLE_BATTLE_GAME__;
-        game.scene.start('ResultScene', { result: 'draw', reason: 'test', duration: 0, p1JsCorrect: 1, p2JsCorrect: 0 });
+        game.scene.start('ResultScene', { result: 'draw', reason: 'test', duration: 0, p1JsCorrect: 0, p2JsCorrect: 0 });
       });
       await page.waitForTimeout(800);
       await page.keyboard.press('Space');
       await page.waitForTimeout(1500);
     }
     state = await getGameState(page);
-    const cd = state.listeners.crate_destroyed;
-    const qa = state.listeners.quiz_answered;
-    const qd = state.listeners.quiz_item_despawned;
-    const test18ok = cd === 1 && qa === 1 && qd === 1 &&
-      state.hiddenQuizCratesSize === 10 && state.quizItemsCount === 0 &&
-      state.revealedQuizCount === 0 && !state.hasActiveSession;
-    console.log(`  Listeners: crate=${cd}, quiz_answered=${qa}, quiz_despawned=${qd}`);
-    console.log(`  Hidden: ${state.hiddenQuizCratesSize}, Items: ${state.quizItemsCount}, Revealed: ${state.revealedQuizCount}`);
-    if (test18ok) {
-      console.log('PASS: Clean restart with fresh state');
-    } else {
-      errors.push('Test 18 FAIL: Stale state after 3 restarts');
-      console.log('FAIL: Stale state');
-    }
 
-    // ===== Summary ====
+    assertCondition(state.hiddenQuizCratesSize === 10, 'Test 18',
+      `hiddenQuizCratesSize should be 10, got ${state.hiddenQuizCratesSize}`, errors);
+    assertCondition(state.quizItemsCount === 0, 'Test 18',
+      `quizItemsCount should be 0, got ${state.quizItemsCount}`, errors);
+    assertCondition(state.revealedQuizCount === 0, 'Test 18',
+      `revealedQuizCount should be 0, got ${state.revealedQuizCount}`, errors);
+    assertCondition(!state.hasActiveSession, 'Test 18',
+      'hasActiveSession should be false', errors);
+    assertCondition(state.listeners.crate_destroyed === 1, 'Test 18',
+      `crate_destroyed listeners should be 1, got ${state.listeners.crate_destroyed}`, errors);
+    assertCondition(state.listeners.quiz_answered === 1, 'Test 18',
+      `quiz_answered listeners should be 1, got ${state.listeners.quiz_answered}`, errors);
+    assertCondition(state.listeners.quiz_item_despawned === 1, 'Test 18',
+      `quiz_item_despawned listeners should be 1, got ${state.listeners.quiz_item_despawned}`, errors);
+    assertCondition(state.listeners.power_up_granted === 1, 'Test 18',
+      `power_up_granted listeners should be 1, got ${state.listeners.power_up_granted}`, errors);
+    assertCondition(state.listeners.speed_boost_ended === 1, 'Test 18',
+      `speed_boost_ended listeners should be 1, got ${state.listeners.speed_boost_ended}`, errors);
+    assertCondition(state.listeners.timer_tick === 1, 'Test 18',
+      `timer_tick listeners should be 1, got ${state.listeners.timer_tick}`, errors);
+    assertCondition(state.listeners.request_place_balloon === 1, 'Test 18',
+      `request_place_balloon listeners should be 1, got ${state.listeners.request_place_balloon}`, errors);
+
+    // ===== Summary =====
     console.log('\n========================================');
     if (consoleErrors.length > 0) {
       console.log('CONSOLE ERRORS DETECTED:');
       consoleErrors.forEach(e => console.log(`  ${e}`));
     }
-    if (errors.length === 0 && consoleErrors.length === 0) {
-      console.log('ALL QUIZ BROWSER ASSERTIONS PASSED.');
+    if (errors.length === 0 && consoleErrors.length === 0 && passedTests === executedTests) {
+      console.log(`ALL QUIZ BROWSER ASSERTIONS PASSED (${passedTests}/${executedTests}).`);
     } else {
-      console.log(`QUIZ BROWSER TESTS FAILED: ${errors.length} error(s), ${consoleErrors.length} console error(s)`);
+      console.log(`QUIZ BROWSER TESTS: ${passedTests}/${executedTests} passed, ${errors.length} error(s), ${consoleErrors.length} console error(s)`);
       errors.forEach((e, i) => console.log(`  ${i + 1}. ${e}`));
       process.exitCode = 1;
     }

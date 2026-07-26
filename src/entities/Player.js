@@ -110,7 +110,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
 
     this.speed = Math.round(this.baseSpeed * multiplier);
     this.speedBoostActive = true;
-    this.speedBoostEndTime = Date.now() + durationMs;
+    this.speedBoostEndTime = this.scene.time.now + durationMs;
     this.showSpeedEffect();
 
     this.speedBoostTimer = this.scene.time.delayedCall(durationMs, () => {
@@ -124,8 +124,8 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   getSpeedBoostRemaining() {
-    if (!this.speedBoostActive) return 0;
-    return Math.max(0, Math.ceil((this.speedBoostEndTime - Date.now()) / 1000));
+    if (!this.speedBoostActive || !this.scene?.time) return 0;
+    return Math.max(0, Math.ceil((this.speedBoostEndTime - this.scene.time.now) / 1000));
   }
 
   showSpeedEffect() {
@@ -166,6 +166,9 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
       this.speedBoostTimer.remove(false);
       this.speedBoostTimer = null;
     }
+    this.speed = this.baseSpeed;
+    this.speedBoostActive = false;
+    this.speedBoostEndTime = 0;
     this.hideSpeedEffect();
   }
 }

@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { POWER_UP_RULES } from '../src/constants/gameRules.js';
+import { getQuestionFontSize, getAnswerFontSize, calculateAnswerLayout, isBoundsInside } from '../src/utils/quizLayout.js';
+import { getEligibleCrates, selectHiddenQuizCrates, QUIZ_DROP_RULES, createGridKey } from '../src/utils/quizDrops.js';
+import { LEVEL_01 } from '../src/data/level01.js';
 
 describe('POWER_UP_RULES', () => {
   it('should have speedDurationMs of 15000', () => {
@@ -19,114 +22,90 @@ describe('POWER_UP_RULES', () => {
   });
 
   it('should not allow speed multiplier to stack beyond 1.2', () => {
-    // The multiplier should always be 1.2 - never stacked
     expect(POWER_UP_RULES.speedMultiplier).toBe(1.2);
     const stacked = POWER_UP_RULES.speedMultiplier * POWER_UP_RULES.speedMultiplier;
     expect(stacked).toBe(1.44);
-    // But production code must never use stacked value
-    // It should always use POWER_UP_RULES.speedMultiplier directly
-  });
-});
-
-describe('Increase ballon/range cap enforcement', () => {
-  it('should cap maxBalloons at 5 regardless of calls', () => {
-    let maxBalloons = 1;
-    const maximum = POWER_UP_RULES.maxBalloons;
-    for (let i = 0; i < 10; i++) {
-      maxBalloons = Math.min(maxBalloons + 1, maximum);
-    }
-    expect(maxBalloons).toBe(5);
-  });
-
-  it('should cap waterRange at 5 regardless of calls', () => {
-    let waterRange = 1;
-    const maximum = POWER_UP_RULES.maxExplosionRange;
-    for (let i = 0; i < 10; i++) {
-      waterRange = Math.min(waterRange + 1, maximum);
-    }
-    expect(waterRange).toBe(5);
-  });
-
-  it('should not go below cap of 5 when starting from 5', () => {
-    let max = 5;
-    max = Math.min(max + 1, POWER_UP_RULES.maxBalloons);
-    expect(max).toBe(5);
-  });
-});
-
-describe('Speed refresh logic', () => {
-  it('should reset to full duration when re-applied', () => {
-    const durationMs = POWER_UP_RULES.speedDurationMs;
-    let remaining = 15000;
-    // Simulate speed boost re-apply
-    remaining = durationMs;
-    expect(remaining).toBe(15000);
-    remaining -= 3000;
-    expect(remaining).toBe(12000);
-    // Re-apply
-    remaining = durationMs;
-    expect(remaining).toBe(15000);
-  });
-
-  it('should expire to NORMAL after duration', () => {
-    const durationMs = POWER_UP_RULES.speedDurationMs;
-    let elapsed = 0;
-    let active = true;
-    // Simulate timer
-    while (elapsed < durationMs) {
-      elapsed += 1000;
-    }
-    if (elapsed >= durationMs) {
-      active = false;
-    }
-    expect(active).toBe(false);
   });
 });
 
 describe('QuizScene font size helpers', () => {
-  function getQuestionFontSize(question) {
-    if (question.length > 140) return 14;
-    if (question.length > 90) return 16;
-    return 18;
-  }
-
-  function getAnswerFontSize(answer) {
-    if (answer.length > 85) return 13;
-    if (answer.length > 55) return 14;
-    if (answer.length > 35) return 15;
-    return 17;
-  }
-
   it('should return 18 for short questions', () => {
     expect(getQuestionFontSize('typeof 123')).toBe(18);
   });
 
   it('should return 18 for medium questions', () => {
-    const medium = 'Toán tử nào so sánh cả giá trị và kiểu dữ liệu trong JavaScript?';
-    // 64 chars → < 90 → font size 18
+    const medium = 'To\u00e1n t\u1eed n\u00e0o so s\u00e1nh c\u1ea3 gi\u00e1 tr\u1ecb v\u00e0 ki\u1ec3u d\u1eef li\u1ec7u trong JavaScript?';
     expect(getQuestionFontSize(medium)).toBe(18);
   });
 
-  it('should return 14 for long questions', () => {
-    const long = 'a'.repeat(141);
-    expect(getQuestionFontSize(long)).toBe(14);
+  it('should return 16 for questions > 90 chars', () => {
+    expect(getQuestionFontSize('a'.repeat(95))).toBe(16);
+  });
+
+  it('should return 14 for questions > 140 chars', () => {
+    expect(getQuestionFontSize('a'.repeat(141))).toBe(14);
   });
 
   it('should return 17 for short answers', () => {
     expect(getAnswerFontSize('"number"')).toBe(17);
   });
 
-  it('should return 15 for longer answers', () => {
-    // > 35 and <= 55 → font size 15
+  it('should return 15 for answers > 35 chars', () => {
     expect(getAnswerFontSize('a'.repeat(40))).toBe(15);
   });
 
-  it('should return 14 for long answers', () => {
+  it('should return 14 for answers > 55 chars', () => {
     expect(getAnswerFontSize('a'.repeat(60))).toBe(14);
   });
 
-  it('should return 13 for very long answers', () => {
+  it('should return 13 for answers > 85 chars', () => {
     expect(getAnswerFontSize('a'.repeat(90))).toBe(13);
+  });
+});
+
+describe('calculateAnswerLayout', () => {
+  it('should return 4 layout entries for 4 answers', () => {
+    const layout = calculateAnswerLayout(['a', 'b', 'c', 'd']);
+    expect(layout).toHaveLength(4);
+  });
+
+  it('should assign increasing y values with spacing', () => {
+    const layout = calculateAnswerLayout(['short', 'medium answer', 'longer answer here', 'very long']);
+    expect(layout[1].y).toBeGreaterThan(layout[0].y + layout[0].height);
+    expect(layout[2].y).toBeGreaterThan(layout[1].y + layout[1].height);
+    expect(layout[3].y).toBeGreaterThan(layout[2].y + layout[2].height);
+  });
+
+  it('should have min height of 54 for each box', () => {
+    const layout = calculateAnswerLayout(['a', 'b', 'c', 'd']);
+    for (const entry of layout) {
+      expect(entry.height).toBeGreaterThanOrEqual(54);
+    }
+  });
+});
+
+describe('isBoundsInside', () => {
+  it('should return true when inner is fully contained', () => {
+    const outer = { x: 0, y: 0, width: 100, height: 100, right: 100, bottom: 100 };
+    const inner = { x: 10, y: 10, width: 80, height: 80, right: 90, bottom: 90 };
+    expect(isBoundsInside(inner, outer)).toBe(true);
+  });
+
+  it('should return false when inner is outside outer right', () => {
+    const outer = { x: 0, y: 0, width: 100, height: 100, right: 100, bottom: 100 };
+    const inner = { x: 90, y: 10, width: 80, height: 80, right: 170, bottom: 90 };
+    expect(isBoundsInside(inner, outer)).toBe(false);
+  });
+
+  it('should return false when inner is outside outer bottom', () => {
+    const outer = { x: 0, y: 0, width: 100, height: 100, right: 100, bottom: 100 };
+    const inner = { x: 10, y: 90, width: 80, height: 80, right: 90, bottom: 170 };
+    expect(isBoundsInside(inner, outer)).toBe(false);
+  });
+
+  it('should return false for null inputs', () => {
+    expect(isBoundsInside(null, {})).toBe(false);
+    expect(isBoundsInside({}, null)).toBe(false);
   });
 });
 
@@ -141,28 +120,23 @@ describe('UI layout constants', () => {
     expect(PANEL_H).toBeLessThanOrEqual(600);
   });
 
-  it('should have panel margins within bounds', () => {
-    const BOUNDS = { left: 20, right: 780, top: 20, bottom: 580 };
+  it('should have prefix inside answer box left bound', () => {
+    const ANSWER_BOX_WIDTH = 600;
     const PANEL_X = 400;
-    const PANEL_W = 760;
-    const halfW = PANEL_W / 2;
-    expect(PANEL_X - halfW).toBe(BOUNDS.left);
-    expect(PANEL_X + halfW).toBe(BOUNDS.right);
-  });
-
-  it('should have answer wordWrap within panel', () => {
-    const wordWrapWidth = 520;
-    const PANEL_W = 760;
-    expect(wordWrapWidth + 80 + 40).toBeLessThanOrEqual(PANEL_W);
+    const ANSWER_BOX_LEFT = PANEL_X - ANSWER_BOX_WIDTH / 2;
+    const PREFIX_X = ANSWER_BOX_LEFT + 28;
+    expect(PREFIX_X).toBeGreaterThan(ANSWER_BOX_LEFT);
+    expect(PREFIX_X).toBeLessThan(ANSWER_BOX_LEFT + ANSWER_BOX_WIDTH);
   });
 });
 
-describe('Quiz drop selection count', () => {
-  it('should select exactly 10 items per round', () => {
-    expect(10).toBe(10);
-  });
+describe('Quiz drop selection with production helpers', () => {
+  const spawnPoints = [{ row: 1, col: 1 }, { row: 9, col: 13 }];
 
-  it('should drop from 68 eligible crates', () => {
-    expect(10).toBeLessThanOrEqual(68);
+  it('should select exactly 10 items from 68 eligible crates', () => {
+    const eligible = getEligibleCrates(LEVEL_01, spawnPoints, QUIZ_DROP_RULES.spawnSafeRadius);
+    expect(eligible).toHaveLength(68);
+    const selected = selectHiddenQuizCrates(eligible, QUIZ_DROP_RULES.hiddenItemsPerRound);
+    expect(selected).toHaveLength(10);
   });
 });

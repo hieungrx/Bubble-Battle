@@ -1,25 +1,20 @@
 import Phaser from 'phaser';
 import { POWER_UP_DISPLAY } from '../constants/powerUps.js';
+import { getQuestionFontSize, getAnswerFontSize, calculateAnswerLayout } from '../utils/quizLayout.js';
 
 const QUIZ_TIME_LIMIT = 10000;
 const PANEL_W = 760;
 const PANEL_H = 560;
 const PANEL_X = 400;
 const PANEL_Y = 300;
+const PANEL_LEFT = PANEL_X - PANEL_W / 2;
 const BOUNDS = { left: 20, right: 780, top: 20, bottom: 580 };
 
-function getQuestionFontSize(question) {
-  if (question.length > 140) return 14;
-  if (question.length > 90) return 16;
-  return 18;
-}
-
-function getAnswerFontSize(answer) {
-  if (answer.length > 85) return 13;
-  if (answer.length > 55) return 14;
-  if (answer.length > 35) return 15;
-  return 17;
-}
+const ANSWER_BOX_WIDTH = 600;
+const ANSWER_BOX_LEFT = PANEL_X - ANSWER_BOX_WIDTH / 2;
+const PREFIX_X = ANSWER_BOX_LEFT + 28;
+const ANSWER_TEXT_X = ANSWER_BOX_LEFT + 58;
+const ANSWER_TEXT_WRAP = ANSWER_BOX_WIDTH - 58 - 24;
 
 export default class QuizScene extends Phaser.Scene {
   constructor() {
@@ -73,17 +68,7 @@ export default class QuizScene extends Phaser.Scene {
     const answerColors = ['#ef4444', '#3b82f6', '#22c55e', '#f59e0b'];
     const answerLabels = ['A', 'B', 'C', 'D'];
 
-    const answerStartY = 230;
-    const answerSpacing = 6;
-    const layoutY = [];
-
-    let currentY = answerStartY;
-    for (let i = 0; i < 4; i++) {
-      const ansFontSize = getAnswerFontSize(this.questionData.answers[i]);
-      const boxHeight = Math.max(54, ansFontSize * 3.5);
-      layoutY.push({ y: currentY, height: boxHeight });
-      currentY += boxHeight + answerSpacing;
-    }
+    const layoutY = calculateAnswerLayout(this.questionData.answers, 230, 6);
 
     this.answerBoxes = [];
 
@@ -91,11 +76,11 @@ export default class QuizScene extends Phaser.Scene {
       const { y, height } = layoutY[i];
       const ansFontSize = getAnswerFontSize(this.questionData.answers[i]);
 
-      const boxBg = this.add.rectangle(PANEL_X, y + height / 2, 600, height, 0x1e293b, 0.9);
+      const boxBg = this.add.rectangle(PANEL_X, y + height / 2, ANSWER_BOX_WIDTH, height, 0x1e293b, 0.9);
       boxBg.setStrokeStyle(1, answerColors[i]);
 
       const prefixText = isP1 ? `${i + 1}` : ' ';
-      const prefix = this.add.text(BOUNDS.left + 40, y + height / 2, prefixText, {
+      const prefix = this.add.text(PREFIX_X, y + height / 2, prefixText, {
         fontSize: '16px',
         fill: answerColors[i],
         fontStyle: 'bold'
@@ -105,14 +90,14 @@ export default class QuizScene extends Phaser.Scene {
       const answerText = this.questionData.answers[i];
       const displayText = `${label}. ${answerText}`;
 
-      const ansText = this.add.text(BOUNDS.left + 80, y + height / 2, displayText, {
+      const ansText = this.add.text(ANSWER_TEXT_X, y + height / 2, displayText, {
         fontSize: `${ansFontSize}px`,
         fill: answerColors[i],
-        wordWrap: { width: 520, useAdvancedWrap: true },
+        wordWrap: { width: ANSWER_TEXT_WRAP, useAdvancedWrap: true },
         lineSpacing: 2
       }).setOrigin(0, 0.5);
 
-      this.answerBoxes.push({ bg: boxBg, prefix, ansText, isP1, y, height, idx: i });
+      this.answerBoxes.push({ bg: boxBg, prefix, ansText, isP1, y, height, idx: i, boxLeft: ANSWER_BOX_LEFT, boxRight: ANSWER_BOX_LEFT + ANSWER_BOX_WIDTH });
     }
 
     if (!isP1) {
@@ -156,7 +141,7 @@ export default class QuizScene extends Phaser.Scene {
   }
 
   getCursorX() {
-    return BOUNDS.left + 40;
+    return PREFIX_X;
   }
 
   getCursorY() {
