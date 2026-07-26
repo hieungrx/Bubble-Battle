@@ -13,6 +13,7 @@ export default class WaterBalloon extends Phaser.GameObjects.Sprite {
 
     this.passThroughPlayerIds = new Set(owner ? [owner.id] : []);
     this.hasExploded = false;
+    this.range = owner ? owner.waterRange : GAME_RULES.startingWaterRange;
 
     this.body.setSize(32, 32);
     this.body.updateFromGameObject();
@@ -60,7 +61,7 @@ export default class WaterBalloon extends Phaser.GameObjects.Sprite {
     this.scene.events.emit('balloon_explode', {
       row: this.gridRow,
       col: this.gridCol,
-      range: this.owner ? this.owner.waterRange : GAME_RULES.startingWaterRange
+      range: this.range
     });
 
     this.destroy();

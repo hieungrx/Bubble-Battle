@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import BootScene from './scenes/BootScene.js';
 import MenuScene from './scenes/MenuScene.js';
 import GameScene from './scenes/GameScene.js';
+import QuizScene from './scenes/QuizScene.js';
 import ResultScene from './scenes/ResultScene.js';
 
 export const config = {
@@ -24,5 +25,5 @@ export const config = {
       debug: false
     }
   },
-  scene: [BootScene, MenuScene, GameScene, ResultScene]
+  scene: [BootScene, MenuScene, GameScene, QuizScene, ResultScene]
 };

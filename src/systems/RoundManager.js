@@ -77,7 +77,9 @@ export default class RoundManager {
       this.scene.scene.start('ResultScene', {
         result,
         reason,
-        duration: GAME_RULES.roundDuration - this.timeRemaining
+        duration: GAME_RULES.roundDuration - this.timeRemaining,
+        p1JsCorrect: this.p1 ? (this.p1.jsCorrectCount || 0) : 0,
+        p2JsCorrect: this.p2 ? (this.p2.jsCorrectCount || 0) : 0
       });
     });
   }

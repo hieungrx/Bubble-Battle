@@ -16,6 +16,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.activeBalloons = 0;
     this.waterRange = GAME_RULES.startingWaterRange;
     this.spawnPosition = { x, y };
+    this.jsCorrectCount = 0;
 
     this.setCollideWorldBounds(true);
     // Make the hitbox slightly smaller than the tile size so it's easier to walk through corridors
@@ -24,6 +25,11 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
 
     this.controls = {};
     this.trapTimer = null;
+    this.speedBoostTimer = null;
+    this.speedBoostActive = false;
+    this.speedBoostEndTime = 0;
+    this.baseSpeed = GAME_RULES.startingSpeed;
+    this.speedIndicator = null;
   }
 
   setControls(keys) {
@@ -96,10 +102,70 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.scene.events.emit('player_dead', this);
   }
 
+  applySpeedBoost(multiplier = 1.2, durationMs = 10000) {
+    if (this.speedBoostTimer) {
+      this.speedBoostTimer.remove(false);
+      this.speedBoostTimer = null;
+    }
+
+    this.speed = Math.round(this.baseSpeed * multiplier);
+    this.speedBoostActive = true;
+    this.speedBoostEndTime = Date.now() + durationMs;
+    this.showSpeedEffect();
+
+    this.speedBoostTimer = this.scene.time.delayedCall(durationMs, () => {
+      this.speed = this.baseSpeed;
+      this.speedBoostActive = false;
+      this.speedBoostEndTime = 0;
+      this.speedBoostTimer = null;
+      this.hideSpeedEffect();
+      this.scene.events.emit('speed_boost_ended', this);
+    });
+  }
+
+  getSpeedBoostRemaining() {
+    if (!this.speedBoostActive) return 0;
+    return Math.max(0, Math.ceil((this.speedBoostEndTime - Date.now()) / 1000));
+  }
+
+  showSpeedEffect() {
+    if (this.speedIndicator) return;
+    const g = this.scene.add.graphics();
+    g.lineStyle(2, 0x00ff88, 0.7);
+    g.strokeCircle(0, 0, 14);
+    g.setDepth(this.depth + 1);
+    this.speedIndicator = g;
+  }
+
+  hideSpeedEffect() {
+    if (this.speedIndicator) {
+      this.speedIndicator.destroy();
+      this.speedIndicator = null;
+    }
+  }
+
+  updateSpeedEffect() {
+    if (!this.speedIndicator) return;
+    this.speedIndicator.setPosition(this.x, this.y);
+  }
+
+  increaseMaxBalloons(amount = 1, maximum = 3) {
+    this.maxBalloons = Math.min(this.maxBalloons + amount, maximum);
+  }
+
+  increaseExplosionRange(amount = 1, maximum = 3) {
+    this.waterRange = Math.min(this.waterRange + amount, maximum);
+  }
+
   cleanup() {
     if (this.trapTimer) {
       this.trapTimer.remove(false);
       this.trapTimer = null;
     }
+    if (this.speedBoostTimer) {
+      this.speedBoostTimer.remove(false);
+      this.speedBoostTimer = null;
+    }
+    this.hideSpeedEffect();
   }
 }

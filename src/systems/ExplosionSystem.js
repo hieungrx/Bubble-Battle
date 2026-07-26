@@ -38,6 +38,12 @@ export default class ExplosionSystem {
           // Break crate and stop
           this.createExplosionHitbox(r, c);
           this.mapSystem.removeCrate(r, c);
+          this.scene.events.emit('crate_destroyed', {
+            row: r,
+            col: c,
+            x: gridToWorld(r, c, GAME_RULES.tileSize).x,
+            y: gridToWorld(r, c, GAME_RULES.tileSize).y
+          });
           break;
         }
 

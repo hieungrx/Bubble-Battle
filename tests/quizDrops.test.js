@@ -1,0 +1,155 @@
+import { describe, it, expect } from 'vitest';
+import {
+  createGridKey,
+  parseGridKey,
+  isInsideSpawnSafeZone,
+  getEligibleCrates,
+  shuffleCopy,
+  selectHiddenQuizCrates
+} from '../src/utils/quizDrops.js';
+import { TILE } from '../src/constants/tileTypes.js';
+
+describe('createGridKey', () => {
+  it('should create key from row and col', () => {
+    expect(createGridKey(5, 7)).toBe('5:7');
+  });
+
+  it('should create key with zeros', () => {
+    expect(createGridKey(0, 0)).toBe('0:0');
+  });
+});
+
+describe('parseGridKey', () => {
+  it('should parse key back to row and col', () => {
+    const result = parseGridKey('5:7');
+    expect(result.row).toBe(5);
+    expect(result.col).toBe(7);
+  });
+});
+
+describe('isInsideSpawnSafeZone', () => {
+  const spawnPoints = [{ row: 1, col: 1 }, { row: 9, col: 13 }];
+
+  it('should return true for exact spawn position', () => {
+    expect(isInsideSpawnSafeZone(1, 1, spawnPoints)).toBe(true);
+    expect(isInsideSpawnSafeZone(9, 13, spawnPoints)).toBe(true);
+  });
+
+  it('should return true within radius', () => {
+    expect(isInsideSpawnSafeZone(1, 2, spawnPoints)).toBe(true);
+    expect(isInsideSpawnSafeZone(3, 1, spawnPoints)).toBe(true);
+    expect(isInsideSpawnSafeZone(9, 11, spawnPoints)).toBe(true);
+  });
+
+  it('should return false outside radius', () => {
+    expect(isInsideSpawnSafeZone(4, 1, spawnPoints)).toBe(false);
+    expect(isInsideSpawnSafeZone(5, 5, spawnPoints)).toBe(false);
+    expect(isInsideSpawnSafeZone(9, 9, spawnPoints)).toBe(false);
+  });
+
+  it('should accept custom radius', () => {
+    expect(isInsideSpawnSafeZone(5, 1, spawnPoints, 1)).toBe(false);
+    expect(isInsideSpawnSafeZone(5, 1, spawnPoints, 5)).toBe(true);
+  });
+});
+
+describe('getEligibleCrates', () => {
+  const testMap = [
+    [1, 1, 1, 1, 1],
+    [1, 0, 2, 2, 1],
+    [1, 2, 2, 0, 1],
+    [1, 2, 0, 2, 1],
+    [1, 1, 1, 1, 1],
+  ];
+  const spawnPoints = [{ row: 1, col: 1 }, { row: 3, col: 3 }];
+
+  it('should return only CRATE tiles', () => {
+    const result = getEligibleCrates(testMap, spawnPoints);
+    for (const c of result) {
+      expect(testMap[c.row][c.col]).toBe(TILE.CRATE);
+    }
+  });
+
+  it('should exclude crates in safe zone', () => {
+    const result = getEligibleCrates(testMap, spawnPoints);
+    // (1,2) and (2,1) are near spawn (1,1)
+    const keys = result.map(c => createGridKey(c.row, c.col));
+    expect(keys).not.toContain('1:2'); // dist 1 from P1
+    expect(keys).not.toContain('2:1'); // dist 1 from P1
+  });
+
+  it('should not mutate original map', () => {
+    const copy = testMap.map(r => [...r]);
+    getEligibleCrates(testMap, spawnPoints);
+    expect(testMap).toEqual(copy);
+  });
+});
+
+describe('shuffleCopy', () => {
+  it('should not mutate the original array', () => {
+    const original = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+    const copy = [...original];
+    shuffleCopy(original, () => 0.5);
+    expect(original).toEqual(copy);
+  });
+
+  it('should return array of same length', () => {
+    const items = [1, 2, 3, 4, 5];
+    const shuffled = shuffleCopy(items);
+    expect(shuffled.length).toBe(items.length);
+  });
+
+  it('should produce different order with different seed', () => {
+    const items = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+    const a = shuffleCopy(items, () => 0.1);
+    const b = shuffleCopy(items, () => 0.9);
+    expect(a.join(',')).not.toBe(b.join(','));
+  });
+
+  it('should produce same order with same seed', () => {
+    const items = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+    const a = shuffleCopy(items, () => 0.42);
+    const b = shuffleCopy(items, () => 0.42);
+    expect(a.join(',')).toBe(b.join(','));
+  });
+});
+
+describe('selectHiddenQuizCrates', () => {
+  const eligible = [
+    { row: 2, col: 2 }, { row: 2, col: 3 }, { row: 3, col: 1 },
+    { row: 3, col: 2 }, { row: 4, col: 1 }, { row: 4, col: 4 },
+  ];
+
+  it('should select at most 3 crates', () => {
+    const result = selectHiddenQuizCrates(eligible, 3);
+    expect(result.length).toBeLessThanOrEqual(3);
+  });
+
+  it('should not select duplicate coordinates', () => {
+    const result = selectHiddenQuizCrates(eligible, 5);
+    const keys = new Set(result.map(c => createGridKey(c.row, c.col)));
+    expect(keys.size).toBe(result.length);
+  });
+
+  it('should return fewer crates if not enough eligible', () => {
+    const few = [{ row: 1, col: 1 }];
+    const result = selectHiddenQuizCrates(few, 3);
+    expect(result.length).toBe(1);
+  });
+
+  it('should return empty array for empty eligible list', () => {
+    const result = selectHiddenQuizCrates([], 3);
+    expect(result.length).toBe(0);
+  });
+
+  it('should not mutate the eligible array', () => {
+    const copy = [...eligible];
+    selectHiddenQuizCrates(eligible, 3);
+    expect(eligible).toEqual(copy);
+  });
+
+  it('should produce deterministic result with seeded random', () => {
+    const result = selectHiddenQuizCrates(eligible, 3, () => 0.5);
+    expect(result.length).toBe(3);
+  });
+});

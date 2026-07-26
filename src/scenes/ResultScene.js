@@ -9,6 +9,8 @@ export default class ResultScene extends Phaser.Scene {
     this.result = data.result || 'draw';
     this.reason = data.reason || 'timeout';
     this.duration = data.duration || 0;
+    this.p1JsCorrect = data.p1JsCorrect || 0;
+    this.p2JsCorrect = data.p2JsCorrect || 0;
   }
 
   create() {
@@ -19,19 +21,26 @@ export default class ResultScene extends Phaser.Scene {
       resultText = 'Player 2 Wins!';
     }
 
-    const title = this.add.text(400, 200, resultText, {
+    const title = this.add.text(400, 180, resultText, {
       fontSize: '48px',
       fill: '#ffffff',
       align: 'center'
     });
     title.setOrigin(0.5);
 
-    const desc = this.add.text(400, 260, `Reason: ${this.reason}\nDuration: ${this.duration}s`, {
+    const desc = this.add.text(400, 240, `Reason: ${this.reason}\nDuration: ${this.duration}s`, {
       fontSize: '24px',
       fill: '#cccccc',
       align: 'center'
     });
     desc.setOrigin(0.5);
+
+    const jsScores = this.add.text(400, 310, `P1 JS đúng: ${this.p1JsCorrect}\nP2 JS đúng: ${this.p2JsCorrect}`, {
+      fontSize: '20px',
+      fill: '#fbbf24',
+      align: 'center'
+    });
+    jsScores.setOrigin(0.5);
 
     const prompt = this.add.text(400, 400, 'Press SPACE to Restart', {
       fontSize: '24px',

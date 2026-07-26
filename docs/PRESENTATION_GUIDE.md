@@ -28,6 +28,30 @@ Bản đồ được biểu diễn dạng mảng hai chiều 11 rows x 15 column
 
 ---
 
+## 4.5. Tính năng Giáo dục — JavaScript Quiz System
+
+### Ý nghĩa giáo dục
+Tính năng Quiz System kết hợp kiến thức JavaScript vào gameplay một cách tự nhiên. Sau khi phá thùng gỗ, người chơi có cơ hội gặp câu hỏi JavaScript. Trả lời đúng không chỉ giúp ghi nhớ kiến thức mà còn nhận power-up giúp tăng lợi thế trong trận đấu. Điều này tạo động lực học tập thông qua phần thưởng trong game.
+
+### Cách kết hợp vào gameplay
+1. **Quiz Item** (dấu `?` vàng) xuất hiện tại vị trí thùng gỗ vừa bị phá.
+2. Khi người chơi chạm vào, GameScene tạm dừng, mở QuizScene overlay.
+3. Câu hỏi hiển thị 4 đáp án, người chơi chọn bằng phím `1`-`4`.
+4. Đồng hồ 10 giây đếm ngược.
+5. Trả lời đúng: nhận power-up (Speed Boost, Extra Balloon, Explosion Range).
+6. Game tiếp tục sau khi đóng QuizScene.
+
+### Kỹ thuật JavaScript nâng cao được áp dụng
+- **ES Modules:** `JS_QUESTIONS` export từ `src/data/jsQuestions.js`, quiz utils từ `src/utils/quiz.js`.
+- **Pure Functions:** `selectRandomQuestion()`, `isCorrectAnswer()`, `validateQuestionBank()` không có side effect, dễ kiểm thử.
+- **Event-driven architecture:** Events `crate_destroyed`, `quiz_item_collected`, `quiz_answered`, `power_up_granted` giữ các module decoupled.
+- **Timers:** Quiz countdown (10s), speed boost expiry (10s), notification auto-hide (2s).
+- **State management:** `ROUND_STATE.PAUSED` khi quiz mở, ngăn input và physics trong lúc trả lời.
+- **Array methods:** `Set` để kiểm tra ID duy nhất, `Array.filter` để loại trừ câu hỏi trùng lặp.
+- **Classes:** `QuizItem extends Phaser.GameObjects.Container`, `QuizScene extends Phaser.Scene`.
+
+---
+
 ## 5. Chuyển đổi Tọa độ Grid <-> World
 Sử dụng 2 hàm thuần (Pure Functions) trong `src/utils/grid.js`:
 - `gridToWorld(row, col, tileSize)`: Tính tâm tọa độ pixels `(x, y)` từ ô lưới.
@@ -82,16 +106,16 @@ Khi bóng nổ, `ExplosionSystem` phát tán tia nước theo 4 hướng (`UP`, 
 
 ---
 
-## 12. Kịch bản Demo 2–3 Phút
+## 12. Kịch bản Demo 2-3 Phút
 1. **0:00 - 0:30:** Mở game (`npm run dev`), giới thiệu MenuScene và bảng hướng dẫn phím bấm cho P1 và P2.
-2. **0:30 - 1:15:** Nhấn Space vào trận. Di chuyển P1 (WASD) và P2 (Phím mũi tên), phá hủy thùng gỗ (`CRATE`) để mở đường.
+2. **0:30 - 1:15:** Nhấn Space vào trận. Di chuyển P1 (WASD) và P2 (Phím mũi tên), phá hủy thùng gỗ (`CRATE`) để mở đường. Demo Quiz Item xuất hiện, nhặt và trả lời câu hỏi JS, nhận power-up.
 3. **1:15 - 2:00:** Đặt bóng nước (`SPACE` / `ENTER`), demo tính năng đi xuyên qua bóng lúc vừa đặt và bị chặn lại khi quay lại.
 4. **2:00 - 2:30:** Bẫy đối thủ vào nước (`TRAPPED`), chờ đếm ngược biến thành `DEAD` và chuyển sang `ResultScene` hiển thị màn hình chiến thắng.
 5. **2:30 - 3:00:** Nhấn `SPACE` để Restart trận mới tức thì.
 
 ---
 
-## 13. Top 10 Câu Hỏi Thường Gặp Của Giảng Viên & Câu Trả Lời
+## 14. Top 10 Câu Hỏi Thường Gặp Của Giảng Viên & Câu Trả Lời
 1. **Q: Tại sao em lại chọn Phaser 3 Arcade Physics thay vì Matter.js?**
    *A:* Arcade Physics rất nhẹ, dùng AABB collision phù hợp tuyệt đối cho dạng game xếp lưới 2D như Bomberman/Bubble Battle, giúp kiểm soát va chạm chính xác từng pixel mà không bị giật lag hay xoay góc không mong muốn.
 2. **Q: Ma trận bản đồ được lưu trữ và truy cập như thế nào?**
