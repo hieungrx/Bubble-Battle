@@ -13,7 +13,7 @@ Competitive 10-Item Quiz System — Final Hardening
 - Trapped player resolution fix (`resolvePlayerStates` helper with 6 Vitest unit tests)
 - Damage lock after round end in `handlePlayerHit()`
 - WaterBalloon static physics body unification (`scene.physics.add.existing(this, true)`)
-- Automated Vitest test suite (`npm run test` — 76 tests across 4 test files)
+- Automated Vitest test suite (`npm run test` — 77 tests across 4 test files)
 - Automated Playwright browser verification (`node scripts/verify-browser.js`)
 - Educational JavaScript Quiz System (10 questions, QuizScene overlay, 3 power-ups)
 - Competitive quiz race condition fix (`handleQuizItemOverlap` checks `activeQuizSession` BEFORE `item.claim()`)
@@ -25,6 +25,11 @@ Competitive 10-Item Quiz System — Final Hardening
 - 18 hardened browser tests (no false-pass branches, strict exact assertions)
 - Crate count verification (72 total, 68 eligible, 10 selected per round)
 - `qa:browser` script avoiding duplicate builds
+- Test 17: UI bounds verified across 10 questions × 2 player modes = 20 layouts via `JS_QUESTIONS` import
+- Test 13: lifetime timer readability is strict assertion — missing data causes failure
+- Speed Boost clock uses Phaser scene time for pause-safe countdown
+- All event listeners cleaned in `GameScene.shutdown()` (8 handlers)
+- `quizLayout.js` extracted: font helpers reusable in tests
 - Documentation updates (README, TEST_REPORT, PRESENTATION_GUIDE)
 
 ## Commands
@@ -40,7 +45,7 @@ npm run test:quiz-browser
 Pass
 
 ## Manual Test Status
-Automated Vitest unit tests (76/76 PASS), Playwright gameplay tests (ALL PASS), Playwright quiz tests (18/18 PASS). Manual playthrough: NOT VERIFIED.
+Automated Vitest unit tests (77/77 PASS), Playwright gameplay tests (ALL PASS), Playwright quiz tests (18 test cases, strict assertions PASS). Manual playthrough: NOT VERIFIED.
 
 ## Known Bugs
 None observed during executed tests.

@@ -15,4 +15,9 @@
 - [x] Quiz text overflow fix (adaptive fonts, separate P2 cursor, result overlay)
 - [x] Power-up balance (15s speed, cap 5 balloon, cap 5 range)
 - [x] 18 hardened browser tests (no false-pass branches)
-- [x] 76 unit tests across 4 test files
+- [x] 77 unit tests across 4 test files
+- [x] Test 17: UI bounds verified across 10 questions × 2 player modes = 20 layouts
+- [x] Test 13: lifetime timer readability is strict assertion (missing data = FAIL)
+- [x] Speed Boost uses Phaser scene clock (pause-safe countdown)
+- [x] All event listeners cleaned in GameScene.shutdown()
+- [x] quizLayout.js extracted: font helpers reusable in unit tests

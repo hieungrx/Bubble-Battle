@@ -2,6 +2,7 @@ import { chromium } from 'playwright';
 import { spawn } from 'child_process';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { JS_QUESTIONS } from '../src/data/jsQuestions.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -342,11 +343,11 @@ async function restartGame(page) {
       await page.waitForTimeout(300);
       state = await getGameState(page);
       assertCondition(state.hasActiveSession && state.quizSceneActive, 'Test 5',
-        'QuizScene not active for P1', errors);
+        'QuizScene active for P1', errors);
 
       const qs = await getQuizState(page);
       assertCondition(qs && qs.active && qs.playerId === 1, 'Test 5',
-        `Quiz not for P1, playerId=${qs?.playerId}`, errors);
+        `Quiz opened for P1, got playerId=${qs?.playerId}`, errors);
 
       // Try P2 keys - should NOT affect P1 quiz
       await page.keyboard.press('ArrowDown');
@@ -355,7 +356,7 @@ async function restartGame(page) {
       await page.waitForTimeout(100);
       const qsAfter = await getQuizState(page);
       assertCondition(qsAfter && !qsAfter.answered, 'Test 5',
-        'P2 keys (ArrowDown + Enter) incorrectly affected P1 quiz', errors);
+        'P2 keys (ArrowDown + Enter) correctly ignored for P1', errors);
 
       // Answer with correct P1 key
       await answerQuizP1(page, qs.correctIndex);
@@ -411,11 +412,11 @@ async function restartGame(page) {
         await page.waitForTimeout(2000);
         state = await getGameState(page);
       }
-      assertCondition(state.quizSceneActive, 'Test 6', 'QuizScene not active for P2', errors);
+      assertCondition(state.quizSceneActive, 'Test 6', 'QuizScene active for P2', errors);
 
       const qs = await getQuizState(page);
       assertCondition(qs && qs.active && qs.playerId === 2, 'Test 6',
-        `Quiz not for P2, playerId=${qs?.playerId}`, errors);
+        `Quiz opened for P2, got playerId=${qs?.playerId}`, errors);
 
       // Try P1 keys - should NOT affect P2 quiz
       await page.keyboard.press('1');
@@ -424,14 +425,14 @@ async function restartGame(page) {
       await page.waitForTimeout(100);
       const qsAfter = await getQuizState(page);
       assertCondition(qsAfter && !qsAfter.answered, 'Test 6',
-        'P1 keys (1,2,3,4) incorrectly affected P2 quiz', errors);
+        'P1 keys (1,2,3,4) correctly ignored for P2', errors);
 
       // Verify ArrowDown changes p2SelectedIndex
       await page.keyboard.press('ArrowDown');
       await page.waitForTimeout(100);
       const qsArrow = await getQuizState(page);
       assertCondition(qsArrow && qsArrow.p2SelectedIndex === 1, 'Test 6',
-        `ArrowDown did not change p2SelectedIndex, got ${qsArrow?.p2SelectedIndex}`, errors);
+        `ArrowDown changed P2 selection to index ${qsArrow?.p2SelectedIndex}`, errors);
 
       // Reset selection and answer correctly
       await page.keyboard.press('ArrowUp');
@@ -495,7 +496,7 @@ async function restartGame(page) {
       await page.waitForTimeout(500);
       state = await getGameState(page);
 
-      assertCondition(state.hasActiveSession, 'Test 7', 'No quiz session started from double claim', errors);
+      assertCondition(state.hasActiveSession, 'Test 7', 'Quiz session started from double claim', errors);
 
       const qs = await getQuizState(page);
       const claimingPlayer = qs?.playerId;
@@ -515,7 +516,7 @@ async function restartGame(page) {
       const itemsAfter = state.quizItemsCount;
 
       assertCondition((p1Delta === 1 && p2Delta === 0) || (p1Delta === 0 && p2Delta === 1), 'Test 7',
-        `Double claim check failed: p1Delta=${p1Delta}, p2Delta=${p2Delta}`, errors);
+        `Exactly one player score increased: p1Delta=${p1Delta}, p2Delta=${p2Delta}`, errors);
       assertCondition(itemsAfter === itemsBefore - 1, 'Test 7',
         `Item should be consumed exactly once (was ${itemsBefore}, now ${itemsAfter})`, errors);
     }
@@ -891,11 +892,13 @@ async function restartGame(page) {
         return null;
       }, itemB13.itemId);
 
-      if (remainingBefore !== null && remainingDuring !== null) {
+      const timerReadable = remainingBefore !== null && remainingDuring !== null;
+      assertCondition(timerReadable, 'Test 13',
+        `Lifetime timer readable: before=${remainingBefore}, during=${remainingDuring}`, errors);
+
+      if (timerReadable) {
         assertCondition(Math.abs(remainingBefore - remainingDuring) < 500, 'Test 13',
-          `Lifetime timer should be paused during quiz (before=${remainingBefore}, during=${remainingDuring}, diff=${Math.abs(remainingBefore - remainingDuring)})`, errors);
-      } else {
-        console.log(`  INFO: Could not read lifetime timer (before=${remainingBefore}, during=${remainingDuring})`);
+          `Lifetime timer changed while paused: before=${remainingBefore}, during=${remainingDuring}, diff=${Math.abs(remainingBefore - remainingDuring)}`, errors);
       }
 
       // Answer quiz immediately (don't wait for timeout)
@@ -923,6 +926,8 @@ async function restartGame(page) {
         p1.increaseMaxBalloons();
         p1.increaseExplosionRange();
       }
+      // Reflect caps in HUD
+      gs.updatePlayerPowerUpHUD(1);
     });
 
     state = await getGameState(page);
@@ -947,19 +952,19 @@ async function restartGame(page) {
     assertCondition(state.p1.waterRange === 5, 'Test 14',
       `waterRange should STILL be exactly 5 after 3 more increases, got ${state.p1.waterRange}`, errors);
 
-    // Check HUD text shows "5/5" from GameScene HUD objects
-    const hudText = await page.evaluate(() => {
+    // Assert exact HUD text after reflecting caps
+    const hudExact = await page.evaluate(() => {
       const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
-      if (!gs) return null;
-      const texts = [];
-      if (gs.p1BalloonHud && gs.p1BalloonHud.text) texts.push(gs.p1BalloonHud.text);
-      if (gs.p1RangeHud && gs.p1RangeHud.text) texts.push(gs.p1RangeHud.text);
-      if (gs.p2BalloonHud && gs.p2BalloonHud.text) texts.push(gs.p2BalloonHud.text);
-      if (gs.p2RangeHud && gs.p2RangeHud.text) texts.push(gs.p2RangeHud.text);
-      return texts.join(' ');
+      if (!gs) return { balloon: null, range: null };
+      return {
+        balloon: gs.p1BalloonHud?.text || null,
+        range: gs.p1RangeHud?.text || null
+      };
     });
-    assertCondition(hudText && hudText.includes('/5'), 'Test 14',
-      `HUD should show "/5" cap indicator, got: ${hudText}`, errors);
+    assertCondition(hudExact.balloon === 'BALLOON: 5/5', 'Test 14',
+      `HUD balloon should be "BALLOON: 5/5", got "${hudExact.balloon}"`, errors);
+    assertCondition(hudExact.range === 'RANGE: 5/5', 'Test 14',
+      `HUD range should be "RANGE: 5/5", got "${hudExact.range}"`, errors);
 
     // ===== TEST 15: Speed duration STRICT =====
     console.log('\n=== Test 15: Speed duration STRICT ===');
@@ -1119,233 +1124,137 @@ async function restartGame(page) {
     assertCondition(rangeB === 2, 'Test 16',
       `Balloon B range should be 2 (after one increase from 1), got ${rangeB}`, errors);
 
-    // ===== TEST 17: UI bounds STRICT (iterate all 10 questions) =====
+    // ===== TEST 17: UI bounds STRICT (10 questions × 2 players) =====
     console.log('\n=== Test 17: UI bounds STRICT ===');
     await restartGame(page);
 
-    // Try to get the question bank
-    const questions = await page.evaluate(() => {
-      const game = window.__BUBBLE_BATTLE_GAME__;
-      const gs = game.scene.getScene('GameScene');
-      if (gs.questionBank && Array.isArray(gs.questionBank)) return gs.questionBank;
-      if (gs.quizManager && gs.quizManager.questionBank && Array.isArray(gs.quizManager.questionBank)) return gs.quizManager.questionBank;
-      const reg = game.registry;
-      try {
-        const all = reg.getAll();
-        for (const [, v] of Object.entries(all)) {
-          if (Array.isArray(v) && v.length >= 10 && v[0]?.question) return v;
-        }
-      } catch (e) {}
-      const qs = game.scene.getScene('QuizScene');
-      if (qs && qs.questionBank && Array.isArray(qs.questionBank)) return qs.questionBank;
-      return null;
-    });
+    const questions = JS_QUESTIONS;
+    assertCondition(
+      questions.length === 10,
+      'Test 17',
+      `Expected 10 questions, got ${questions.length}`,
+      errors
+    );
 
-    if (!questions || questions.length === 0) {
-      // Fallback: do basic bounds check via in-game quiz
-      console.log('  INFO: Could not get question bank, using in-game quiz for bounds check');
-      const fallbackKey = await page.evaluate(() => {
-        const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
-        if (gs.hiddenQuizCrates.size > 0) return [...gs.hiddenQuizCrates][0];
-        return null;
-      });
-      if (fallbackKey) {
-        const [fr, fc] = fallbackKey.split(':').map(Number);
-        await page.evaluate((p) => {
-          const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
-          gs.events.emit('crate_destroyed', { row: p.r, col: p.c, x: 0, y: 0 });
-        }, { r: fr, c: fc });
-        await page.waitForTimeout(300);
-        const fItem = await page.evaluate(() => {
-          const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
-          if (gs.quizItems && gs.quizItems.size > 0) {
-            const first = [...gs.quizItems.values()][0];
-            return { x: first.x, y: first.y };
-          }
-          return null;
+    let anyFail = false;
+    const questionCount = questions.length;
+    const PANEL_X = 400, PANEL_Y = 300, PANEL_W = 760, PANEL_H = 560;
+    const panelL = PANEL_X - PANEL_W / 2, panelR = PANEL_X + PANEL_W / 2;
+    const panelT = PANEL_Y - PANEL_H / 2, panelB = PANEL_Y + PANEL_H / 2;
+
+    for (const playerId of [1, 2]) {
+      console.log(`  Checking UI bounds for P${playerId} across ${questionCount} questions...`);
+
+      for (let qi = 0; qi < questionCount; qi++) {
+        const q = questions[qi];
+
+        await page.evaluate(() => {
+          const game = window.__BUBBLE_BATTLE_GAME__;
+          if (game.scene.isActive('QuizScene')) game.scene.stop('QuizScene');
+          const gs = game.scene.getScene('GameScene');
+          if (gs && gs.scene.isPaused()) gs.scene.resume();
         });
-        if (fItem) {
-          await page.evaluate((p) => {
-            const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
-            gs.player1.setPosition(p.x, p.y);
-          }, fItem);
-          await page.waitForTimeout(500);
-          const boundsOk = await page.evaluate(() => {
-            const game = window.__BUBBLE_BATTLE_GAME__;
-            const qs = game.scene.getScene('QuizScene');
-            if (!qs || !qs.scene.isActive()) return { allInCanvas: false, error: 'No quiz scene', childCount: 0, violations: [] };
-            const children = qs.children.list;
-            let allInCanvas = true;
-            const violations = [];
-            for (const child of children) {
-              if (!child || !child.getBounds) continue;
-              const b = child.getBounds();
-              if (b.width < 1 && b.height < 1) continue;
-              const inCanvas = b.x >= -5 && b.y >= -5 && b.right <= 805 && b.bottom <= 605;
-              if (!inCanvas) {
-                allInCanvas = false;
-                violations.push({ x: b.x, y: b.y, right: b.right, bottom: b.bottom, w: b.width, h: b.height, type: child.type });
-              }
+        await page.waitForTimeout(150);
+
+        await page.evaluate(({ question, pid }) => {
+          const game = window.__BUBBLE_BATTLE_GAME__;
+          if (!game) return;
+          if (game.scene.isActive('QuizScene')) game.scene.stop('QuizScene');
+          const gs = game.scene.getScene('GameScene');
+          if (gs && gs.scene.isPaused()) gs.scene.resume();
+          gs.scene.launch('QuizScene', { question, playerId: pid });
+        }, { question: q, pid: playerId });
+
+        const active = await page.waitForFunction(() => {
+          return window.__BUBBLE_BATTLE_GAME__.scene.isActive('QuizScene');
+        }, { timeout: 2000 }).catch(() => false);
+        if (!active) {
+          anyFail = true;
+          console.log(`  VIOLATION ${q.id} P${playerId}: QuizScene did not activate`);
+          continue;
+        }
+
+        const uiResult = await page.evaluate(({ qid, pid }) => {
+          const qs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('QuizScene');
+          if (!qs || !qs.scene.isActive()) return { error: 'not active' };
+          const children = qs.children.list;
+          const v = [];
+          const pL = 20, pR = 780, pT = 20, pB = 580;
+          const boxL = 100, boxR = 700, boxW = 600;
+
+          let panel = null;
+          const boxes = [];
+          const aTexts = [];
+          const prefixObjs = [];
+
+          for (const c of children) {
+            if (!c || !c.getBounds) continue;
+            const b = c.getBounds();
+            if (b.width < 1 && b.height < 1) continue;
+
+            if (b.x < 0 || b.y < 0 || b.right > 800 || b.bottom > 600) {
+              v.push(`canvas overflow: ${c.type} (${Math.round(b.x)},${Math.round(b.y)})-(${Math.round(b.right)},${Math.round(b.bottom)})`);
             }
-            return { allInCanvas, violations, childCount: children.length };
-          });
-          assertCondition(boundsOk.allInCanvas, 'Test 17',
-            `${boundsOk.violations?.length || 0} object(s) outside canvas 800x600 (${boundsOk.childCount} children)`, errors);
-          if (!boundsOk.allInCanvas && boundsOk.violations) {
-            for (const v of boundsOk.violations) {
-              console.log(`  VIOLATION: ${v.type} at (${v.x},${v.y})-(${v.right},${v.bottom}) size ${v.w}x${v.h}`);
+
+            if (c.type === 'Rectangle') {
+              if (b.width >= 700 && b.height >= 500) panel = b;
+              else if (b.width >= 500 && b.height >= 40 && b.height <= 120) boxes.push(b);
+            }
+            if (c.type === 'Text') {
+              const t = c.text || '';
+              if (t.includes('Quiz') || t.includes('Nhan') || t.includes('Dung') || t.includes('ENTER') || t.includes('xac nhan')) continue;
+              if (/^\d+s$/.test(t)) continue;
+              if (t === '>' && pid === 2) prefixObjs.push(b);
+              else if (/^[\d ]$/.test(t) || /^\d$/.test(t)) prefixObjs.push(b);
+              else if (/^[ABCD]\./.test(t)) aTexts.push(b);
             }
           }
-          // Close quiz
-          const closeQs = await getQuizState(page);
-          if (closeQs) {
-            if (closeQs.playerId === 1) await answerQuizP1(page, closeQs.correctIndex);
-            else await answerQuizP2(page, closeQs.correctIndex);
+
+          boxes.sort((a, b) => a.y - b.y);
+          aTexts.sort((a, b) => a.y - b.y);
+
+          if (panel) {
+            for (const bx of boxes) {
+              if (bx.x < boxL - 3 || bx.right > boxR + 3) v.push(`answerBox outside panel horizontally`);
+              if (bx.y < pT - 3 || bx.bottom > pB + 3) v.push(`answerBox outside panel vertically`);
+            }
+            for (let i = 1; i < boxes.length; i++) {
+              if (boxes[i - 1].bottom > boxes[i].y + 3) v.push(`answerBox${i - 1} overlaps answerBox${i}`);
+            }
+            for (let i = 0; i < aTexts.length && i < boxes.length; i++) {
+              if (aTexts[i].x < boxL - 5 || aTexts[i].right > boxR + 5) v.push(`answerText${i} outside answerBox${i}`);
+            }
+            for (let i = 0; i < prefixObjs.length && i < boxes.length; i++) {
+              if (prefixObjs[i].x < boxL - 2 || prefixObjs[i].right > boxL + 60) v.push(`prefix${i} outside answer box left`);
+            }
+          }
+
+          return { violations: v, qid };
+        }, { qid: q.id, pid: playerId });
+
+        if (uiResult.error) {
+          anyFail = true;
+          console.log(`  VIOLATION ${q.id} P${playerId}: ${uiResult.error}`);
+        }
+        if (uiResult.violations && uiResult.violations.length > 0) {
+          anyFail = true;
+          for (const vv of uiResult.violations) {
+            console.log(`  VIOLATION ${q.id} P${playerId}: ${vv}`);
           }
         }
+
+        await page.evaluate(() => {
+          if (window.__BUBBLE_BATTLE_GAME__.scene.isActive('QuizScene'))
+            window.__BUBBLE_BATTLE_GAME__.scene.stop('QuizScene');
+          const gs = window.__BUBBLE_BATTLE_GAME__.scene.getScene('GameScene');
+          if (gs && gs.scene.isPaused()) gs.scene.resume();
+        });
+        await page.waitForTimeout(150);
       }
-    } else {
-      let anyFail = false;
-      const questionCount = Math.min(questions.length, 10);
-
-      for (const playerId of [1, 2]) {
-        console.log(`  Checking UI bounds for P${playerId} across ${questionCount} questions...`);
-
-        for (let qi = 0; qi < questionCount; qi++) {
-          const q = questions[qi];
-
-          // Stop any active QuizScene first
-          await page.evaluate(() => {
-            const game = window.__BUBBLE_BATTLE_GAME__;
-            if (game.scene.isActive('QuizScene')) {
-              game.scene.stop('QuizScene');
-            }
-          });
-          await page.waitForTimeout(200);
-
-          // Launch QuizScene with this question
-          await page.evaluate(({ question, pid }) => {
-            const game = window.__BUBBLE_BATTLE_GAME__;
-            game.scene.launch('QuizScene', { question, playerId: pid });
-          }, { question: q, pid: playerId });
-          await page.waitForTimeout(500);
-
-          // Check bounds
-          const uiResult = await page.evaluate(({ questionText }) => {
-            const game = window.__BUBBLE_BATTLE_GAME__;
-            const qs = game.scene.getScene('QuizScene');
-            if (!qs || !qs.scene.isActive()) return { error: 'QuizScene not active', violations: [] };
-
-            const children = qs.children.list;
-            const violations = [];
-
-            // Collect objects by type
-            const texts = [];
-            const rects = [];
-            for (const child of children) {
-              if (!child || !child.getBounds) continue;
-              const b = child.getBounds();
-              if (b.width < 1 && b.height < 1) continue;
-
-              // Canvas bounds check
-              const inCanvas = b.x >= -5 && b.y >= -5 && b.right <= 805 && b.bottom <= 605;
-              if (!inCanvas) {
-                violations.push(`Object ${child.type} at (${b.x},${b.y})-(${b.right},${b.bottom}) outside canvas`);
-              }
-
-              if (child.type === 'Text') {
-                texts.push({ text: child.text || '', bounds: b });
-              } else if (child.type === 'Rectangle' || child.type === 'Graphics') {
-                rects.push({ bounds: b, type: child.type });
-              }
-            }
-
-            // Find panel (largest rectangle)
-            rects.sort((a, b) => (b.bounds.width * b.bounds.height) - (a.bounds.width * a.bounds.height));
-            const panel = rects.length > 0 ? rects[0].bounds : null;
-
-            // Find question text
-            const qText = texts.find(t => t.text === questionText || t.text.includes(questionText?.substring(0, 20)));
-            // Find answer texts (exclude the question text itself and very short texts)
-            const answerTexts = texts.filter(t => t !== qText && t.text.length > 0 && !t.text.match(/^\s*\d+s?\s*$/));
-
-            // Find answer boxes (rectangles that aren't the panel)
-            const answerBoxes = rects.filter(r => r.bounds !== panel && r.bounds.width > 40);
-
-            // Check containment
-            if (panel && qText) {
-              const qb = qText.bounds;
-              if (!(qb.x >= panel.x - 2 && qb.y >= panel.y - 2 && qb.right <= panel.right + 2 && qb.bottom <= panel.bottom + 2)) {
-                violations.push(`Question text (${qb.x},${qb.y}) not within panel (${panel.x},${panel.y})-(${panel.right},${panel.bottom})`);
-              }
-            }
-
-            for (const at of answerTexts) {
-              // Find matching answer box (closest box below the text or containing it)
-              const matchingBox = answerBoxes.find(box =>
-                at.bounds.x >= box.bounds.x - 5 && at.bounds.y >= box.bounds.y - 5 &&
-                at.bounds.right <= box.bounds.right + 5 && at.bounds.bottom <= box.bounds.bottom + 5
-              );
-              if (matchingBox) {
-                // Answer text within its box: check
-              }
-              // Answer box within panel
-              if (matchingBox && panel) {
-                const mb = matchingBox.bounds;
-                if (!(mb.x >= panel.x - 2 && mb.y >= panel.y - 2 && mb.right <= panel.right + 2 && mb.bottom <= panel.bottom + 2)) {
-                  violations.push(`Answer box (${mb.x},${mb.y}) not within panel (${panel.x},${panel.y})-(${panel.right},${panel.bottom})`);
-                }
-              }
-            }
-
-            return { violations, childCount: children.length, hasPanel: !!panel, textCount: texts.length, rectCount: rects.length };
-          }, { questionText: q.question || '' });
-
-          if (uiResult.error) {
-            anyFail = true;
-            console.log(`  VIOLATION Q${qi} P${playerId}: ${uiResult.error}`);
-          }
-
-          if (uiResult.violations && uiResult.violations.length > 0) {
-            anyFail = true;
-            for (const v of uiResult.violations) {
-              console.log(`  VIOLATION Q${qi} P${playerId}: ${v}`);
-            }
-          }
-
-          // Close quiz by answering correctly
-          await page.evaluate((correctIdx) => {
-            const game = window.__BUBBLE_BATTLE_GAME__;
-            const qs = game.scene.getScene('QuizScene');
-            if (qs && qs.scene.isActive() && !qs.answered) {
-              // Simulate answering directly
-              if (qs.playerId === 1) {
-                qs.handleAnswer(correctIdx);
-              } else {
-                qs.handleAnswer(correctIdx);
-              }
-            }
-          }, q.correctIndex);
-          await page.waitForTimeout(500);
-
-          // Ensure QuizScene is stopped
-          await page.evaluate(() => {
-            const game = window.__BUBBLE_BATTLE_GAME__;
-            if (game.scene.isActive('QuizScene')) {
-              game.scene.stop('QuizScene');
-            }
-            const gs = game.scene.getScene('GameScene');
-            if (gs && gs.scene.isPaused()) {
-              gs.scene.resume();
-            }
-          });
-          await page.waitForTimeout(200);
-        }
-      }
-
-      assertCondition(!anyFail, 'Test 17',
-        'UI bounds violations found across questions (see logs above)', errors);
     }
+
+    assertCondition(!anyFail, 'Test 17',
+      'No UI bounds violations across 20 question layouts', errors);
 
     // ===== TEST 18: Restart lifecycle STRICT (7 listeners) =====
     console.log('\n=== Test 18: Restart lifecycle (3x) ===');
@@ -1390,10 +1299,20 @@ async function restartGame(page) {
       console.log('CONSOLE ERRORS DETECTED:');
       consoleErrors.forEach(e => console.log(`  ${e}`));
     }
+    const TEST_CASE_COUNT = 18;
     if (errors.length === 0 && consoleErrors.length === 0 && passedTests === executedTests) {
-      console.log(`ALL QUIZ BROWSER ASSERTIONS PASSED (${passedTests}/${executedTests}).`);
+      console.log(
+        `ALL QUIZ BROWSER ASSERTIONS PASSED ` +
+        `(${passedTests}/${executedTests} assertions across ${TEST_CASE_COUNT} test cases).`
+      );
     } else {
-      console.log(`QUIZ BROWSER TESTS: ${passedTests}/${executedTests} passed, ${errors.length} error(s), ${consoleErrors.length} console error(s)`);
+      console.log(
+        `QUIZ BROWSER TESTS FAILED: ` +
+        `${passedTests}/${executedTests} assertions passed across ` +
+        `${TEST_CASE_COUNT} test cases, ` +
+        `${errors.length} error(s), ` +
+        `${consoleErrors.length} console error(s)`
+      );
       errors.forEach((e, i) => console.log(`  ${i + 1}. ${e}`));
       process.exitCode = 1;
     }

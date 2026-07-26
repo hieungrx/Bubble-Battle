@@ -3,10 +3,11 @@
 | Test case | Method | Expected | Actual | Status | Evidence |
 | --- | --- | --- | --- | --- | --- |
 | Dependency synchronization | CLI Automated | Phaser 3.x, Vite 6.x, lockfile name bubble-battle | Match package.json and lockfile | AUTOMATED PASS | `npm ls phaser vite` (phaser@3.90.0, vite@6.4.3) |
-| Unit tests (RoundResolver) | Vitest Automated | 6 state cases (DEAD/ACTIVE/TRAPPED/timeout) | 7/7 tests passed | AUTOMATED PASS | `npm run test` (Vitest v4.1.10) |
+| Unit tests (RoundResolver) | Vitest Automated | 7 state cases (DEAD/ACTIVE/TRAPPED/timeout) | 7/7 tests passed | AUTOMATED PASS | `npm run test` (Vitest v4.1.10) |
 | Unit tests (Quiz) | Vitest Automated | 19 test cases (question bank validation, quiz utils) | 19/19 tests passed | AUTOMATED PASS | `npm run test` (quiz.test.js) |
-| Unit tests (Quiz Drops) | Vitest Automated | 21 test cases (grid keys, eligible crates, selection, constants) | 21/21 tests passed | AUTOMATED PASS | `npm run test` (quizDrops.test.js) |
-| Unit tests (Power-ups) | Vitest Automated | 23 test cases (POWER_UP_RULES, caps, font helpers, layout bounds) | 23/23 tests passed | AUTOMATED PASS | `npm run test` (powerUps.test.js) |
+| Unit tests (Quiz Drops) | Vitest Automated | 27 test cases (grid keys, eligible crates, selection, constants, level01 counts) | 27/27 tests passed | AUTOMATED PASS | `npm run test` (quizDrops.test.js) |
+| Unit tests (Power-ups) | Vitest Automated | 24 test cases (POWER_UP_RULES, caps, quizLayout helpers, bounds checking) | 24/24 tests passed | AUTOMATED PASS | `npm run test` (powerUps.test.js) |
+| **Total unit tests** | Vitest Automated | **77 test cases across 4 test files** | **77/77 tests passed** | AUTOMATED PASS | `npm run test` |
 | Production build | CLI Automated | `npm run build` passes with zero errors | Bundle created in `dist/` | AUTOMATED PASS | Production bundle generated |
 | Browser rendering & Canvas | Playwright Headless Browser | Canvas element rendered, MenuScene visible | Canvas rendered cleanly | BROWSER AUTOMATED PASS | `scripts/verify-browser.js` |
 | Texture lifecycle & warnings | Playwright Headless Browser | Textures created once in BootScene | 0 duplicate key warnings | BROWSER AUTOMATED PASS | `scripts/verify-browser.js` |
@@ -28,11 +29,11 @@
 | Wrong answer no reward | Playwright Headless Browser | Wrong answer → score unchanged, item consumed, game resumes | Score unchanged, game active | BROWSER AUTOMATED PASS | `scripts/verify-quiz.js` test 10 |
 | Timeout no reward | Playwright Headless Browser | Timer expires → score unchanged, quiz closes, game resumes | Score unchanged, game resumes | BROWSER AUTOMATED PASS | `scripts/verify-quiz.js` test 11 |
 | Item lifetime | Playwright Headless Browser | Item auto-despawns after 20s | Item removed from map | BROWSER AUTOMATED PASS | `scripts/verify-quiz.js` test 12 |
-| Lifetime pause during quiz | Playwright Headless Browser | Item timer pauses while GameScene paused | Item survives quiz duration | BROWSER AUTOMATED PASS | `scripts/verify-quiz.js` test 13 |
+| Lifetime pause during quiz | Playwright Headless Browser | Item timer pauses while GameScene paused; timer readability is strict assertion — missing data causes failure | Item survives quiz duration, timer unchanged | BROWSER AUTOMATED PASS | `scripts/verify-quiz.js` test 13 |
 | Power-up caps (5/5) | Playwright Headless Browser | `maxBalloons ≤ 5`, `waterRange ≤ 5` | Capped at 5 | BROWSER AUTOMATED PASS | `scripts/verify-quiz.js` test 14 |
 | Speed duration + refresh | Playwright Headless Browser | 15s duration, refresh resets timer, no stacking | 15s, speed = base × 1.2 | BROWSER AUTOMATED PASS | `scripts/verify-quiz.js` test 15 |
 | Range snapshot | Playwright Headless Browser | Balloon placed before upgrade keeps old range | A=1, B=2 | BROWSER AUTOMATED PASS | `scripts/verify-quiz.js` test 16 |
-| UI bounds | Playwright Headless Browser | All objects within panel and canvas 800×600 | Panel, answers, overlay within bounds | BROWSER AUTOMATED PASS | `scripts/verify-quiz.js` test 17 |
+| UI bounds (20 layouts) | Playwright Headless Browser | 10 questions × 2 player modes = 20 layouts verified; panel, answers, prefixes, cursor, countdown within bounds | 20 layouts checked across all quiz questions | BROWSER AUTOMATED PASS | `scripts/verify-quiz.js` test 17 |
 | Restart lifecycle (3x) | Playwright Headless Browser | 3 restarts: 10 hidden, 0 items, 0 session, listeners=1 | Clean state after 3 restarts | BROWSER AUTOMATED PASS | `scripts/verify-quiz.js` test 18 |
 | QA full pipeline (2x consecutive) | CLI Automated | Both runs pass with zero failures | Both runs ALL ASSERTIONS PASSED | AUTOMATED PASS | `npm run qa` executed twice consecutively |
 
